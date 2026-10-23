@@ -71,8 +71,8 @@ Cortana 2.0 funciona en Termux con **Node.js 20 o superior**. Se recomienda Andr
 ```bash
 pkg update -y && pkg upgrade -y
 pkg install -y git
-git clone <URL_DEL_REPOSITORIO> cortana
-cd cortana
+git clone https://github.com/Koridev-ai/prueba.git prueba
+cd prueba
 bash termux-install.sh
 npm start
 ```
