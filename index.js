@@ -14,6 +14,7 @@ process.chdir(__dirname);
 
 const { isOwner } = require("./config");
 const { handleCommand } = require("./main");
+const groupHooks = require("./libs/grouphooks");
 
 function isAllowedUser(sender) {
   const listaFile = "./src/lista.json";
@@ -135,11 +136,14 @@ setInterval(async () => {
 
           if (!isGroup && !fromMe && !isOwner(sender) && !isAllowedUser(sender)) return;
 
+          if (isGroup && !fromMe) await groupHooks.onMessage(sock, msg, messageText).catch(() => null);
+
           if (!messageText.startsWith(global.prefix)) return;
 
           const body = messageText.slice(global.prefix.length).trim();
           const command = body.split(" ")[0];
           const args = body.slice(command.length).trim().split(" ");
+          if (isGroup && !(await groupHooks.allowCommand(sock, msg, command.toLowerCase(), sender).catch(() => true))) return;
           handleCommand(sock, msg, command, args, sender);
         } catch (error) {
           console.error("❌ Error en messages.upsert:", error);
@@ -191,6 +195,8 @@ setInterval(async () => {
           console.log(chalk.red("❌ Conexión cerrada. BaileysX gestionará la reconexión..."));
         }
       });
+
+      sock.ev.on("group-participants.update", (update) => groupHooks.onParticipants(sock, update).catch(() => null));
 
       sock.ev.on("creds.update", saveCreds);
 
