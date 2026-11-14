@@ -6,7 +6,7 @@ const path = require("path");
 const MENU_BANNER = path.join(__dirname, "..", "..", "media", "menu.jpg");
 const FALLBACK_NAME = "Rem";
 const DEFAULT_CATEGORY = "Otros";
-const CATEGORY_ORDER = ["General", "Perfil", "Grupo", "Economía", "Descargas", "Stickers", "Utilidades", "Sub-Bot", "Owner"];
+const CATEGORY_ORDER = ["General", "Perfil", "Grupo", "Economía", "Descargas", "Stickers", "Utilidades", "NSFW", "Sub-Bot", "Owner"];
 
 let cachedCommands = null;
 
