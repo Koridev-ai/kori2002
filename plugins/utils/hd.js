@@ -70,7 +70,7 @@ async function webpToPng(webpBuffer, tmpDir) {
   }
 }
 
-async function enhance(inputBuffer) {
+async function enhanceVectorInk(inputBuffer) {
   const out = { ok: false };
   const tmpDir = path.join(os.tmpdir(), "vectorink");
   try {
@@ -89,7 +89,7 @@ async function enhance(inputBuffer) {
     });
     const json = await safeJson(res);
     if (!res.ok) {
-      out.error = { step: "request", status: res.status };
+      out.error = { step: "request", status: res.status, body: JSON.stringify(json).slice(0, 200) };
       return out;
     }
     const innerText = json?.result;
@@ -128,6 +128,48 @@ async function enhance(inputBuffer) {
   }
 }
 
+async function enhanceVyro(inputBuffer, operation = "enhance") {
+  const out = { ok: false };
+  try {
+    const form = new FormData();
+    form.append("model_version", "1");
+    form.append("image", new Blob([inputBuffer], { type: "image/jpeg" }), "enhance_image_body.jpg");
+    const res = await fetch(`https://inferenceengine.vyro.ai/${operation}`, {
+      method: "POST",
+      headers: { "user-agent": "okhttp/4.9.3", connection: "Keep-Alive" },
+      body: form,
+      signal: AbortSignal.timeout(TIMEOUT)
+    });
+    if (!res.ok) {
+      out.error = { step: "request", status: res.status };
+      return out;
+    }
+    const buffer = Buffer.from(await res.arrayBuffer());
+    if (!sniffImage(buffer)) {
+      out.error = { step: "parse", code: "not_image" };
+      return out;
+    }
+    out.ok = true;
+    out.buffer = buffer;
+    return out;
+  } catch (e) {
+    out.error = { step: "exception", message: e?.message || String(e) };
+    return out;
+  }
+}
+
+async function enhance(inputBuffer) {
+  const providers = [enhanceVectorInk, enhanceVyro];
+  let last = { ok: false, error: { step: "none" } };
+  for (const provider of providers) {
+    const result = await provider(inputBuffer);
+    if (result.ok) return result;
+    console.error(`[hd] ${provider.name} falló:`, JSON.stringify(result.error));
+    last = result;
+  }
+  return last;
+}
+
 const handler = async (msg, ctx = {}) => {
   const sock = ctx.conn;
   const chatId = msg.key.remoteJid;
@@ -156,7 +198,7 @@ const handler = async (msg, ctx = {}) => {
 
     const result = await enhance(buffer);
     if (!result.ok || !result.buffer) {
-      const reason = result.error?.code || result.error?.step || result.error?.message || "error desconocido";
+      const reason = [result.error?.step, result.error?.status, result.error?.code].filter(Boolean).join(" ") || result.error?.message || "error desconocido";
       return kit.reply(sock, msg, `《✧》 No se pudo *mejorar* la imagen (${reason})`);
     }
 
