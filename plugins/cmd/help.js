@@ -3,7 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const MENU_BANNER = "https://cdn.russellxz.click/8d278a49.jpeg";
+const MENU_BANNER = path.join(__dirname, "..", "..", "media", "menu.jpg");
 const FALLBACK_NAME = "Rem";
 const DEFAULT_CATEGORY = "Otros";
 const CATEGORY_ORDER = ["General", "Perfil", "Grupo", "Economía", "Descargas", "Stickers", "Utilidades", "Sub-Bot", "Owner"];
@@ -114,7 +114,7 @@ const handler = async (msg, ctx = {}) => {
   const mentions = sender ? [sender] : [];
 
   try {
-    await sock.sendMessage(chatId, { image: { url: MENU_BANNER }, caption: menuText, mentions }, { quoted: msg });
+    await sock.sendMessage(chatId, { image: fs.readFileSync(MENU_BANNER), caption: menuText, mentions }, { quoted: msg });
   } catch (error) {
     console.error("❌ No se pudo enviar el menú con imagen:", error.message);
     await sock.sendMessage(chatId, { text: menuText, mentions }, { quoted: msg });
