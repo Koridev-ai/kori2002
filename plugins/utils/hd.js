@@ -153,13 +153,39 @@ async function enhanceVyro(inputBuffer, operation = "enhance") {
     out.buffer = buffer;
     return out;
   } catch (e) {
-    out.error = { step: "exception", message: e?.message || String(e) };
+    out.error = { step: "exception", message: e?.message || String(e), cause: e?.cause?.code || e?.cause?.message };
     return out;
   }
 }
 
+async function enhanceLocal(inputBuffer) {
+  const out = { ok: false };
+  const tmpDir = path.join(os.tmpdir(), "vectorink");
+  const tag = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  const inPath = path.join(tmpDir, `loc_in_${tag}`);
+  const outPath = path.join(tmpDir, `loc_out_${tag}.jpg`);
+  try {
+    await fsp.mkdir(tmpDir, { recursive: true });
+    await fsp.writeFile(inPath, inputBuffer);
+    await runFfmpeg([
+      "-y", "-i", inPath,
+      "-vf", "scale=w='min(2*iw,2560)':h=-2:flags=lanczos,unsharp=5:5:0.9:5:5:0.0,eq=contrast=1.05:saturation=1.08",
+      "-frames:v", "1", "-q:v", "2", outPath
+    ], 60000);
+    out.buffer = await fsp.readFile(outPath);
+    out.ok = true;
+    return out;
+  } catch (e) {
+    out.error = { step: "local", message: e?.message || String(e) };
+    return out;
+  } finally {
+    await fsp.unlink(inPath).catch(() => {});
+    await fsp.unlink(outPath).catch(() => {});
+  }
+}
+
 async function enhance(inputBuffer) {
-  const providers = [enhanceVectorInk, enhanceVyro];
+  const providers = [enhanceVectorInk, enhanceVyro, enhanceLocal];
   let last = { ok: false, error: { step: "none" } };
   for (const provider of providers) {
     const result = await provider(inputBuffer);
