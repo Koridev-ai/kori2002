@@ -14,7 +14,7 @@
   "license": "ISC",
   "engines": { "node": ">=20.0.0" },
   "dependencies": {
-    "baileys": "7.0.0-rc14",
+    "baileys": "npm:@neykoor/baileys@8.0.7-rc18",
     "axios": "^0.24.0",
     "chalk": "^4.1.2",
     "cheerio": "^1.0.0-rc.12",
