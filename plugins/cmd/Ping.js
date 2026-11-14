@@ -1,54 +1,35 @@
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
+"use strict";
 
-const handler = async (msg, { conn }) => {
+const FALLBACK_NAME = "Cortana 2.0";
+
+const handler = async (msg, ctx = {}) => {
+  const sock = ctx.conn;
+  const chatId = msg.key.remoteJid;
+  const botName = sock.user?.name || FALLBACK_NAME;
+
   try {
-    const { proto } = global.wa || await import("baileys");
-
-    const chatId = msg.key.remoteJid;
-    const isGroup = chatId.endsWith("@g.us");
     const start = Date.now();
+    const sent = await sock.sendMessage(chatId, { text: `\`❏ ¡Pong!\`\n> *${botName}*` }, { quoted: msg });
+    const latency = Date.now() - start;
+    const result = `✿ *Pong!*\n> Tiempo ⴵ ${latency}ms`;
 
-    const sent = await conn.sendMessage(
-      chatId,
-      { text: "🏓 Pong..." },
-      { quoted: msg }
-    );
-
-    const ping = Date.now() - start;
-    const resultText = `🏓 Pong\n\n✅ Ping: ${ping} ms`;
-
-    if (isGroup) {
-      await sleep(100);
+    if (sent?.key) {
       try {
-        await conn.relayMessage(
-          chatId,
-          {
-            protocolMessage: {
-              key: sent.key,
-              type: 14,
-              editedMessage: proto.Message.fromObject({
-                conversation: resultText
-              })
-            }
-          },
-          { messageId: sent.key.id }
-        );
-      } catch {
-        await conn.sendMessage(chatId, { text: resultText }, { quoted: msg });
+        await sock.sendMessage(chatId, { text: result, edit: sent.key });
+        return;
+      } catch (error) {
+        console.error("❌ No se pudo editar el mensaje de ping:", error.message);
       }
-    } else {
-      await conn.sendMessage(chatId, { text: resultText }, { quoted: msg });
     }
-  } catch {
-    await conn.sendMessage(
-      msg.key.remoteJid,
-      { text: "Error calculando el ping." },
-      { quoted: msg }
-    );
+
+    await sock.sendMessage(chatId, { text: result }, { quoted: msg });
+  } catch (error) {
+    console.error("❌ Error en ping:", error);
+    await sock.sendMessage(chatId, { text: "❌ Error calculando el ping." }, { quoted: msg }).catch(() => null);
   }
 };
 
 handler.command = ["ping"];
+handler.description = "Muestra la latencia del bot";
+handler.category = "General";
 module.exports = handler;
