@@ -1,6 +1,6 @@
 "use strict";
 
-const FALLBACK_NAME = "Cortana 2.0";
+const FALLBACK_NAME = "Rem";
 
 const handler = async (msg, ctx = {}) => {
   const sock = ctx.conn;
