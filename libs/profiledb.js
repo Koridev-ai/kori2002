@@ -3,6 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const kit = require("./pluginkit");
+const lid = require("./lid");
 
 const FILE = path.resolve(__dirname, "..", "src", "profile.json");
 const MULTIPLIER = 2;
@@ -29,12 +30,51 @@ function key(jid) {
   return String(jid || "").split("@")[0].split(":")[0].replace(/[^0-9]/g, "");
 }
 
+const resolveJid = (sock, jid, msg) => lid.resolve(sock, jid, msg);
+
+async function prepare(sock, msg) {
+  const rawSelf = msg.key.participant || msg.key.remoteJid;
+  const rawMentions = kit.getMentions(msg);
+  const rawQuoted = kit.getQuoted(msg)?.sender || null;
+  const self = await resolveJid(sock, rawSelf, msg);
+  const mentions = [];
+  for (const raw of rawMentions) mentions.push({ raw, jid: await resolveJid(sock, raw, msg) });
+  const quoted = rawQuoted ? { raw: rawQuoted, jid: await resolveJid(sock, rawQuoted, msg) } : null;
+  msg.__ids = { rawSelf, self, mentions, quoted };
+  return msg.__ids;
+}
+
 function selfJid(msg) {
-  return msg.key.participant || msg.key.remoteJid;
+  return msg.__ids?.self || msg.key.participant || msg.key.remoteJid;
+}
+
+function rawSelfJid(msg) {
+  return msg.__ids?.rawSelf || msg.key.participant || msg.key.remoteJid;
+}
+
+function mentionTarget(msg) {
+  const ids = msg.__ids;
+  if (ids) return ids.mentions[0] || ids.quoted || null;
+  const raw = kit.getMentions(msg)[0] || kit.getQuoted(msg)?.sender || null;
+  return raw ? { raw, jid: raw } : null;
 }
 
 function targetJid(msg) {
-  return kit.getMentions(msg)[0] || kit.getQuoted(msg)?.sender || selfJid(msg);
+  return mentionTarget(msg)?.jid || selfJid(msg);
+}
+
+function isOwner(msg, sender) {
+  if (msg.key.fromMe) return true;
+  const ids = [key(selfJid(msg)), key(rawSelfJid(msg)), String(sender || "").replace(/[^0-9]/g, "")];
+  return ids.some((id) => id && global.isOwner(id));
+}
+
+function label(jid, raw) {
+  const user = peek(jid);
+  const id = key(jid);
+  if (user?.name && user.name !== id) return { text: user.name, jid: null };
+  const shown = raw || jid;
+  return { text: `@${key(shown)}`, jid: shown };
 }
 
 function defaults(id) {
@@ -126,6 +166,7 @@ function avatarFallback(name) {
 
 async function onCommand(sock, msg) {
   const chatId = msg.key.remoteJid;
+  await prepare(sock, msg);
   const jid = selfJid(msg);
   const user = get(jid);
   if (!user) return;
@@ -149,9 +190,10 @@ async function onCommand(sock, msg) {
 
   if (afkNotice) await sock.sendMessage(chatId, { text: afkNotice }, { quoted: msg }).catch(() => null);
 
-  const mentioned = [...new Set([...kit.getMentions(msg), kit.getQuoted(msg)?.sender].filter(Boolean))];
-  for (const target of mentioned) {
-    if (key(target) === key(jid)) continue;
+  const ids = msg.__ids;
+  const mentioned = [...ids.mentions.map((m) => m.jid), ids.quoted?.jid].filter(Boolean);
+  for (const target of new Set(mentioned.map(key))) {
+    if (target === key(jid)) continue;
     const data = peek(target);
     if (!data || typeof data.afk !== "number" || data.afk < 0) continue;
     const text = `ꕥ El usuario *${data.name}* está AFK.\n> ○ Motivo » *${data.afkReason || "sin especificar"}*\n> ○ Tiempo inactivo » *${formatTime(Date.now() - data.afk)}*`;
@@ -161,8 +203,14 @@ async function onCommand(sock, msg) {
 
 module.exports = {
   key,
+  resolveJid,
+  prepare,
   selfJid,
+  rawSelfJid,
+  mentionTarget,
   targetJid,
+  isOwner,
+  label,
   get,
   peek,
   set,
