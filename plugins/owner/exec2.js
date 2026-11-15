@@ -10,7 +10,7 @@ const handler = async (msg, ctx = {}) => {
   const sock = ctx.conn;
   const text = (ctx.text || "").trim();
 
-  if (!msg.key.fromMe && !global.isOwner(ctx.sender || "")) {
+  if (!(msg.key.fromMe && !ctx.isSub) && !global.isOwner(ctx.sender || "")) {
     return kit.reply(sock, msg, "《✧》 Este comando es solo para el owner.");
   }
   if (!text) return kit.reply(sock, msg, "《✧》 Debes escribir un comando a ejecutar.");
