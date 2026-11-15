@@ -12,6 +12,7 @@ const DEFAULTS = {
   alerts: false,
   antilinks: false,
   adminonly: false,
+  economy: true,
   sWelcome: "",
   sGoodbye: "",
   warnLimit: 3,
