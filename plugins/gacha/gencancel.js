@@ -7,7 +7,7 @@ const job = require("../../libs/genjob");
 module.exports = gacha.define({
   commands: ["gencancel", "gencancelar", "genstop"],
   description: "Cancela la generación de personajes en curso.",
-  owner: true,
+  mod: true,
   run: async ({ sock, msg }) => {
     const active = job.getJob();
     if (!active) return kit.reply(sock, msg, "💤 No hay ninguna generación en curso.");
