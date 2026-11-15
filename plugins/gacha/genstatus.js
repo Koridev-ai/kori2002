@@ -8,7 +8,7 @@ const job = require("../../libs/genjob");
 module.exports = gacha.define({
   commands: ["genstatus", "genestado"],
   description: "Muestra el avance de la generación en curso y el estado de yande.re.",
-  owner: true,
+  mod: true,
   run: async ({ sock, msg, usedPrefix }) => {
     const active = job.getJob();
     const health = yandere.getHealth();
