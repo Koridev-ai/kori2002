@@ -69,6 +69,12 @@ function isOwner(msg, sender) {
   return ids.some((id) => id && global.isOwner(id));
 }
 
+function isMod(msg, sender) {
+  if (msg.key.fromMe) return true;
+  const ids = [key(selfJid(msg)), key(rawSelfJid(msg)), String(sender || "").replace(/[^0-9]/g, "")];
+  return ids.some((id) => id && global.isMod(id));
+}
+
 function label(jid, raw) {
   const user = peek(jid);
   const id = key(jid);
@@ -210,6 +216,7 @@ module.exports = {
   mentionTarget,
   targetJid,
   isOwner,
+  isMod,
   label,
   get,
   peek,
