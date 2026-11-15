@@ -12,16 +12,21 @@ const qrcodeTerminal = require("qrcode-terminal");
 
 process.chdir(__dirname);
 
-const { isOwner } = require("./config");
-const { handleCommand } = require("./main");
-const groupHooks = require("./libs/grouphooks");
+require("./config");
+require("./main");
+const botconf = require("./libs/botconf");
+const dispatch = require("./libs/dispatch");
+const subbot = require("./libs/subbot");
 
-function isAllowedUser(sender) {
-  const listaFile = "./src/lista.json";
-  if (!fs.existsSync(listaFile)) return false;
-  const lista = JSON.parse(fs.readFileSync(listaFile, "utf-8"));
-  return lista.includes(sender.replace(/\D/g, ""));
-}
+const mainBot = { id: null, isMain: true, bootTime: Date.now() };
+let mainNumber = "";
+let subsStarted = false;
+
+const startSubs = () => {
+  if (subsStarted) return;
+  subsStarted = true;
+  subbot.start();
+};
 
 global.opts = new Object(yargs(process.argv.slice(2)).exitProcess(false).parse());
 const localTmpDir = join(__dirname, "./tmp");
@@ -109,45 +114,9 @@ setInterval(async () => {
 
   function bindSocket(sock) {
     try {
-      sock.ev.on("messages.upsert", async (messageUpsert) => {
-        try {
-          const msg = messageUpsert.messages[0];
-          if (!msg) return;
-
-          const chatId = msg.key.remoteJid;
-          const isGroup = chatId.endsWith("@g.us");
-          const sender = msg.key.participant ? msg.key.participant.replace(/[^0-9]/g, "") : chatId.replace(/[^0-9]/g, "");
-          const botNumber = sock.user.id.split(":")[0];
-          const fromMe = msg.key.fromMe || sender === botNumber;
-
-          if (!msg.message && msg.messageStubType === wa.proto.WebMessageInfo.StubType.CIPHERTEXT) {
-            console.log(chalk.red(`⚠️ No se pudo descifrar un mensaje de ${sender}: ${(msg.messageStubParameters || []).join(" ")}`));
-            return;
-          }
-
-          const messageText = msg.message?.conversation || msg.message?.extendedTextMessage?.text || msg.message?.imageMessage?.caption || msg.message?.videoMessage?.caption || msg.message?.documentMessage?.caption || "";
-          const messageType = Object.keys(msg.message || {})[0];
-
-          console.log(chalk.yellow("\n📩 Nuevo mensaje recibido"));
-          console.log(chalk.green(`📨 De: ${fromMe ? "[Tú]" : "[Usuario]"} ${chalk.bold(sender)}`));
-          console.log(chalk.cyan(`💬 Tipo: ${messageType}`));
-          console.log(chalk.cyan(`💬 Mensaje: ${chalk.bold(messageText || "📂 (Mensaje multimedia)")}`));
-          console.log(chalk.gray("──────────────────────────"));
-
-          if (!isGroup && !fromMe && !isOwner(sender) && !isAllowedUser(sender)) return;
-
-          if (isGroup && !fromMe) await groupHooks.onMessage(sock, msg, messageText).catch(() => null);
-
-          if (!messageText.startsWith(global.prefix)) return;
-
-          const body = messageText.slice(global.prefix.length).trim();
-          const command = body.split(" ")[0];
-          const args = body.slice(command.length).trim().split(" ");
-          if (isGroup && !(await groupHooks.allowCommand(sock, msg, command.toLowerCase(), sender).catch(() => true))) return;
-          handleCommand(sock, msg, command, args, sender);
-        } catch (error) {
-          console.error("❌ Error en messages.upsert:", error);
-        }
+      global.mainSock = sock;
+      sock.ev.on("messages.upsert", (messageUpsert) => {
+        dispatch.onUpsert(sock, messageUpsert, mainBot).catch((error) => console.error("❌ Error en messages.upsert:", error));
       });
 
       sock.ev.on("connection.update", async (update) => {
@@ -177,6 +146,14 @@ setInterval(async () => {
           console.log(chalk.blue("🔄 Conectando a WhatsApp..."));
         } else if (connection === "open") {
           console.log(chalk.green("✅ ¡Conexión establecida con éxito!"));
+          mainNumber = botconf.number(sock.user?.id);
+          mainBot.id = mainNumber;
+          mainBot.bootTime = Date.now();
+          botconf.get(mainNumber);
+          botconf.set(mainNumber, "type", "Owner");
+          botconf.register(mainNumber, { isMain: true, getSock: () => global.mainSock });
+          botconf.setOnline(mainNumber, true);
+          startSubs();
           const restarterFile = "./src/lastRestarter.json";
           if (fs.existsSync(restarterFile)) {
             try {
@@ -191,12 +168,13 @@ setInterval(async () => {
             }
           }
         } else if (connection === "close") {
+          if (mainNumber) botconf.setOnline(mainNumber, false);
           if (!state.creds.registered) pairingRequested = false;
           console.log(chalk.red("❌ Conexión cerrada. BaileysX gestionará la reconexión..."));
         }
       });
 
-      sock.ev.on("group-participants.update", (update) => groupHooks.onParticipants(sock, update).catch(() => null));
+      sock.ev.on("group-participants.update", (update) => dispatch.onParticipants(sock, update, mainBot).catch(() => null));
 
       sock.ev.on("creds.update", saveCreds);
 
@@ -209,6 +187,8 @@ setInterval(async () => {
       console.error(chalk.red("❌ Error enlazando el socket:"), error);
     }
   }
+
+  if (fs.existsSync("./sessions/creds.json")) setTimeout(startSubs, 10000);
 
   makeResilientSocket({
     config: socketConfig,
