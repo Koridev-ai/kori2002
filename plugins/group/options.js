@@ -15,7 +15,9 @@ const MAP = {
   alerts: "alerts",
   alertas: "alerts",
   adminonly: "adminonly",
-  onlyadmin: "adminonly"
+  onlyadmin: "adminonly",
+  economy: "economy",
+  economia: "economy"
 };
 
 const NAMES = {
@@ -23,17 +25,19 @@ const NAMES = {
   welcome: "el mensaje de *Bienvenida*",
   goodbye: "el mensaje de *Despedida*",
   alerts: "las *Alertas*",
-  adminonly: "el modo *Solo Admin*"
+  adminonly: "el modo *Solo Admin*",
+  economy: "los comandos de *Economía*"
 };
 
-const TITLES = { antilinks: "AntiEnlace", welcome: "Bienvenida", goodbye: "Despedida", alerts: "Alertas", adminonly: "AdminOnly" };
+const TITLES = { antilinks: "AntiEnlace", welcome: "Bienvenida", goodbye: "Despedida", alerts: "Alertas", adminonly: "AdminOnly", economy: "Economía" };
 
 const INFO = {
   antilinks: "> Si el *antienlace* está activado, el bot eliminará a todos los usuarios que envíen links de otros grupos.",
   welcome: "> Si el mensaje de bienvenida está activado, el bot enviará un mensaje de bienvenida a los nuevos miembros del grupo.",
   goodbye: "> Si el mensaje de despedida está activado, el bot enviará un mensaje de despedida en el momento que un usuario abandone el grupo.",
   alerts: "> Si las alertas están activadas, el bot avisará cuando se realicen cambios de administradores.",
-  adminonly: "> Si el modo *Solo Admin* está activado, solo los administradores podrán utilizar los comandos del bot."
+  adminonly: "> Si el modo *Solo Admin* está activado, solo los administradores podrán utilizar los comandos del bot.",
+  economy: "> Si la economía está activada, los miembros podrán usar los comandos de economía en este grupo."
 };
 
 module.exports = gk.define({
