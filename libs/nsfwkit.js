@@ -47,7 +47,7 @@ function setEnabled(chatId, value) {
 
 async function isAdmin(sock, msg) {
   const chatId = msg.key.remoteJid;
-  if (!chatId.endsWith("@g.us") || msg.key.fromMe) return true;
+  if (!chatId.endsWith("@g.us") || (msg.key.fromMe && !msg.__sub)) return true;
   const meta = await sock.groupMetadata(chatId).catch(() => null);
   if (!meta) return false;
   const mine = [msg.key.participant, msg.key.participantAlt, pdb.selfJid(msg), pdb.rawSelfJid(msg)]
