@@ -192,3 +192,4 @@ function claimPlugin({ commands, description, name, label, gap, maxStreak, base,
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 module.exports = { sleep, rand, pick, loseMoney, fill, account, peek, all, currency, money, formatTime, remaining, setCooldown, parseAmount, define, claimPlugin, save, flush, key };
+        
