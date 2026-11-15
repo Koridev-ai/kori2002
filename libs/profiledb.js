@@ -64,13 +64,13 @@ function targetJid(msg) {
 }
 
 function isOwner(msg, sender) {
-  if (msg.key.fromMe) return true;
+  if (msg.key.fromMe && !msg.__sub) return true;
   const ids = [key(selfJid(msg)), key(rawSelfJid(msg)), String(sender || "").replace(/[^0-9]/g, "")];
   return ids.some((id) => id && global.isOwner(id));
 }
 
 function isMod(msg, sender) {
-  if (msg.key.fromMe) return true;
+  if (msg.key.fromMe && !msg.__sub) return true;
   const ids = [key(selfJid(msg)), key(rawSelfJid(msg)), String(sender || "").replace(/[^0-9]/g, "")];
   return ids.some((id) => id && global.isMod(id));
 }
