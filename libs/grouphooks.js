@@ -3,6 +3,7 @@
 const db = require("./groupdb");
 const gk = require("./groupkit");
 const lid = require("./lid");
+const ecomath = require("./ecomath");
 
 const INVITE_REGEX = /chat\.whatsapp\.com\/([0-9A-Za-z]{20,24})/i;
 
@@ -11,6 +12,7 @@ async function onMessage(sock, msg, text) {
   if (!chatId.endsWith("@g.us") || msg.key.fromMe || !msg.message) return;
   const jid = await lid.resolve(sock, msg.key.participant, msg).catch(() => msg.key.participant);
   db.track(chatId, jid, String(text || "").startsWith(global.prefix || "."));
+  await ecomath.check(sock, msg, text, jid).catch(() => null);
   const chat = db.chat(chatId);
   if (!chat.antilinks) return;
   const match = String(text || "").match(INVITE_REGEX);
