@@ -20,7 +20,7 @@ function detect(buffer) {
 }
 
 function dirOf(id) {
-  const key = String(id || "").replace(/[^0-9]/g, "");
+  const key = String(id || "").split("@")[0].split(":")[0].replace(/[^0-9]/g, "");
   if (!key) throw new Error("Id de bot inválido.");
   return path.join(ROOT, key);
 }
@@ -50,6 +50,12 @@ function read(id, kind) {
 
 function bannerBuffer(id) {
   return read(id, "banner") || read(id, "icon");
+}
+
+function bannerImage(id, fallbackFile) {
+  const buffer = bannerBuffer(id);
+  if (buffer) return { image: buffer, mimetype: (detect(buffer) || { mime: "image/jpeg" }).mime };
+  return { image: fs.readFileSync(fallbackFile), mimetype: "image/jpeg" };
 }
 
 function remove(id, kind) {
@@ -119,4 +125,4 @@ async function acquire(msg, args) {
   return kit.downloadMedia(media);
 }
 
-module.exports = { KINDS, MAX_BYTES, detect, file, read, bannerBuffer, save, remove, removeAll, acquire, download };
+module.exports = { KINDS, MAX_BYTES, detect, file, read, bannerBuffer, bannerImage, save, remove, removeAll, acquire, download };
