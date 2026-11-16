@@ -71,7 +71,8 @@ function compact(number) {
 async function sendWithBanner(sock, msg, text, mentions = []) {
   const chatId = msg.key.remoteJid;
   try {
-    return await sock.sendMessage(chatId, { image: fs.readFileSync(MENU_BANNER), caption: text, mentions }, { quoted: msg });
+    const custom = require("./botmedia").bannerBuffer(sock.user?.id);
+    return await sock.sendMessage(chatId, { image: custom || fs.readFileSync(MENU_BANNER), caption: text, mentions }, { quoted: msg });
   } catch {
     return sock.sendMessage(chatId, { text, mentions }, { quoted: msg });
   }
