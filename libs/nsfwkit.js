@@ -30,7 +30,8 @@ const BLOCKED_TAGS = new Set([
 const NON_ANIME_TAGS = new Set([
   "3d", "3d_animation", "mmd", "mikumikudance", "source_filmmaker", "blender_(medium)", "koikatsu",
   "realistic", "photorealistic", "real_life", "real_life_insert", "photo_(medium)", "photo",
-  "cosplay", "cosplay_photo", "live_action", "irl", "real", "western", "furry", "cartoon", "pixel_art"
+  "cosplay", "cosplay_photo", "live_action", "irl", "real", "western", "furry", "cartoon", "pixel_art",
+  "anthro", "real_person", "realistic_(style)", "3dcg", "sfm", "gmod", "second_life", "pornstar", "amateur", "webcam", "western_animation", "comic_(western)"
 ]);
 
 let store = null;
@@ -185,7 +186,7 @@ async function getBuffer(url, referer) {
   throw lastError;
 }
 
-function normalize(items, { ext, getUrl, getTags, getRating, extra, animeOnly = false }) {
+function normalize(items, { ext, getUrl, getTags, getRating, extra, animeOnly = true }) {
   const out = [];
   for (const item of Array.isArray(items) ? items : []) {
     const url = getUrl(item);
@@ -202,7 +203,7 @@ function normalize(items, { ext, getUrl, getTags, getRating, extra, animeOnly = 
   return out;
 }
 
-async function fromDanbooru(tags, animated, anime = animated, base = "https://danbooru.donmai.us") {
+async function fromDanbooru(tags, animated, anime = true, base = "https://danbooru.donmai.us") {
   const first = tags[0] || "";
   // Danbooru deja solo 2 tags a usuarios anónimos: cada intento usa como máximo 2.
   const attempts = animated
@@ -237,7 +238,7 @@ async function fromDanbooru(tags, animated, anime = animated, base = "https://da
   return [];
 }
 
-async function fromMoebooru(base, referer, tags, animated = false, anime = animated) {
+async function fromMoebooru(base, referer, tags, animated = false, anime = true) {
   const query = animated ? [...tags, "animated", "order:random"] : [...tags, "-rating:safe", "order:random"];
   const data = await getJson(`${base}/post.json`, { tags: query.join(" "), limit: 40 });
   const posts = normalize(data, {
@@ -270,13 +271,14 @@ async function fromXbooru(tags, animated = false) {
       getUrl: (p) => p.built,
       getTags: (p) => p.tags,
       getRating: (p) => p.rating || "e",
-      extra: { referer: "https://xbooru.com/" }
+      extra: { referer: "https://xbooru.com/" },
+      animeOnly: true
     }
   );
   return animated ? posts.filter((p) => ["mp4", "gif", "webm"].includes(p.ext)) : posts;
 }
 
-async function fromGelbooru02(base, referer, tags, animated = false, anime = animated) {
+async function fromGelbooru02(base, referer, tags, animated = false, anime = true) {
   const data = await getJson(`${base}/index.php`, {
     page: "dapi",
     s: "post",
@@ -554,4 +556,4 @@ module.exports = {
   convertToMp4,
   extOf
 };
-                                
+    
