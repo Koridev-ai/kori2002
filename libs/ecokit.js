@@ -12,12 +12,57 @@ const FILE = path.resolve(__dirname, "..", "src", "economy.json");
 let store = null;
 let timer = null;
 
+function mergeAccounts(into, from) {
+  into.coins = (into.coins || 0) + (from.coins || 0);
+  into.bank = (into.bank || 0) + (from.bank || 0);
+  for (const field of ["health", "stamina", "magic"]) {
+    if (typeof from[field] === "number") into[field] = Math.max(typeof into[field] === "number" ? into[field] : 0, from[field]);
+  }
+  into.cd = into.cd || {};
+  for (const [name, until] of Object.entries(from.cd || {})) into.cd[name] = Math.max(into.cd[name] || 0, until || 0);
+  for (const bagName of ["tools", "weapons"]) {
+    into[bagName] = into[bagName] || {};
+    for (const [id, item] of Object.entries(from[bagName] || {})) {
+      const current = into[bagName][id];
+      if (!current || (item.durability || 0) > (current.durability || 0)) into[bagName][id] = item;
+    }
+  }
+  into.inventory = into.inventory || {};
+  for (const [id, amount] of Object.entries(from.inventory || {})) into.inventory[id] = (into.inventory[id] || 0) + (amount || 0);
+  return into;
+}
+
+function migrate(raw) {
+  const isLegacy = Object.keys(raw).some((k) => k.includes("@"));
+  if (!isLegacy) return { data: raw, changed: false };
+  const data = {};
+  for (const [k, value] of Object.entries(raw)) {
+    if (!k.includes("@")) {
+      data[k] = data[k] ? mergeAccounts(data[k], value) : value;
+      continue;
+    }
+    for (const [id, acc] of Object.entries(value || {})) {
+      data[id] = data[id] ? mergeAccounts(data[id], acc) : acc;
+    }
+  }
+  return { data, changed: true };
+}
+
 function load() {
   if (store) return store;
+  let raw = {};
   try {
-    store = fs.existsSync(FILE) ? JSON.parse(fs.readFileSync(FILE, "utf-8")) : {};
+    raw = fs.existsSync(FILE) ? JSON.parse(fs.readFileSync(FILE, "utf-8")) : {};
   } catch {
-    store = {};
+    raw = {};
+  }
+  const { data, changed } = migrate(raw);
+  store = data;
+  if (changed) {
+    try {
+      fs.copyFileSync(FILE, `${FILE}.bak-por-grupo`);
+    } catch {}
+    flush();
   }
   return store;
 }
@@ -55,21 +100,20 @@ function normalize(a) {
   return a;
 }
 
-function account(chatId, jid) {
+function account(jid) {
   const db = load();
-  if (!db[chatId]) db[chatId] = {};
   const id = key(jid);
-  if (!db[chatId][id]) db[chatId][id] = {};
-  return normalize(db[chatId][id]);
+  if (!db[id]) db[id] = {};
+  return normalize(db[id]);
 }
 
-function peek(chatId, jid) {
-  const found = load()[chatId]?.[key(jid)];
+function peek(jid) {
+  const found = load()[key(jid)];
   return found ? normalize(found) : null;
 }
 
-function all(chatId) {
-  return Object.entries(load()[chatId] || {}).map(([id, a]) => ({ id, ...normalize(a) }));
+function all() {
+  return Object.entries(load()).map(([id, a]) => ({ id, ...normalize(a) }));
 }
 
 function currency() {
@@ -147,7 +191,7 @@ function define({ commands, description, run }) {
         );
       }
       const jid = pdb.selfJid(c.msg);
-      return run({ ...c, jid, me: account(c.g.chatId, jid), chatId: c.g.chatId });
+      return run({ ...c, jid, me: account(jid), chatId: c.g.chatId });
     }
   });
   handler.category = "Economía";
@@ -192,4 +236,5 @@ function claimPlugin({ commands, description, name, label, gap, maxStreak, base,
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 module.exports = { sleep, rand, pick, loseMoney, fill, account, peek, all, currency, money, formatTime, remaining, setCooldown, parseAmount, define, claimPlugin, save, flush, key };
-        
+
+                                                          
