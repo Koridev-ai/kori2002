@@ -24,7 +24,7 @@ module.exports = eco.define({
     if (me.bank < amount) {
       return kit.reply(sock, msg, `ꕥ No tienes suficientes *${name}* en el banco para transferir.\n> Tu saldo actual: *${eco.money(me.bank)}*`);
     }
-    const target = eco.account(g.chatId, t.jid);
+    const target = eco.account(t.jid);
     me.bank -= amount;
     target.bank += amount;
     eco.save();
