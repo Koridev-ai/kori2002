@@ -12,7 +12,7 @@ const REACTIONS = {
   spank: { self: "está dando una nalgada", other: "le está dando una nalgada a", purr: null, tag: "spanking" },
   lickpussy: { self: "está lamiendo un coño", other: "le está lamiendo el coño a", purr: "pussylick", tag: "cunnilingus" },
   fap: { self: "se está masturbando", other: "se está masturbando pensando en", purr: "solo", tag: "masturbation" },
-  grope: { self: "se lo está manoseando", other: "se lo está manoseando a", purr: null, nekobot: "pgif", tag: "groping" },
+  grope: { self: "se lo está manoseando", other: "se lo está manoseando a", purr: null, tag: "groping" },
   sixnine: { self: "está haciendo un 69", other: "está haciendo un 69 con", purr: null, tag: "69" },
   suckboobs: { self: "está chupando unas ricas tetas", other: "le está chupando las tetas a", purr: null, tag: "nipple_suck" },
   grabboobs: { self: "está agarrando unas tetas", other: "le está agarrando las tetas a", purr: null, tag: "grabbing_another's_breast" },
