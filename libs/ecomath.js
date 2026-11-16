@@ -52,7 +52,7 @@ async function check(sock, msg, text, jid) {
   if (parseFloat(raw) === game.answer) {
     const [min, max] = REWARDS[game.difficulty];
     const reward = eco.rand(min, max);
-    eco.account(chatId, jid).coins += reward;
+    eco.account(jid).coins += reward;
     eco.save();
     clearTimeout(game.timer);
     games.delete(chatId);
