@@ -1,5 +1,9 @@
 "use strict";
 
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const { spawn } = require("child_process");
 const axios = require("axios");
 const kit = require("./pluginkit");
 const nsfw = require("./nsfwkit");
@@ -56,6 +60,65 @@ async function getBuffer(url, { headers, timeout = 90000, max = 120 * 1024 * 102
     headers: { "User-Agent": UA, ...headers }
   });
   return Buffer.from(res.data);
+}
+
+function sniffAudio(buffer) {
+  const head = buffer.subarray(0, 12);
+  const text = head.toString("latin1");
+  if (text.startsWith("ID3") || (head[0] === 0xff && (head[1] & 0xe0) === 0xe0)) return "mp3";
+  if (text.slice(4, 8) === "ftyp") return "m4a";
+  const first = String.fromCharCode(head[0] || 0);
+  if (first === "<" || first === "{") return "invalid";
+  return "other";
+}
+
+function convertToMp3(buffer) {
+  return new Promise((resolve, reject) => {
+    const id = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const input = path.join(os.tmpdir(), `aud_${id}.bin`);
+    const output = path.join(os.tmpdir(), `aud_${id}.mp3`);
+    const clean = () => {
+      for (const file of [input, output]) fs.rm(file, { force: true }, () => {});
+    };
+    fs.writeFileSync(input, buffer);
+    const proc = spawn("ffmpeg", ["-y", "-i", input, "-vn", "-c:a", "libmp3lame", "-b:a", "128k", "-ar", "44100", "-ac", "2", output], {
+      stdio: ["ignore", "ignore", "pipe"]
+    });
+    let stderr = "";
+    const timer = setTimeout(() => {
+      proc.kill("SIGKILL");
+      clean();
+      reject(new Error("ffmpeg timeout"));
+    }, 120000);
+    proc.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    proc.on("error", (err) => {
+      clearTimeout(timer);
+      clean();
+      reject(err);
+    });
+    proc.on("close", (code) => {
+      clearTimeout(timer);
+      try {
+        if (code !== 0) throw new Error(stderr.split("\n").slice(-3).join(" ").trim() || `ffmpeg salió con código ${code}`);
+        const result = fs.readFileSync(output);
+        clean();
+        resolve(result);
+      } catch (err) {
+        clean();
+        reject(err);
+      }
+    });
+  });
+}
+
+async function toPlayableAudio(buffer) {
+  const kind = sniffAudio(buffer);
+  if (kind === "invalid") throw new Error("La API devolvió un archivo que no es audio");
+  if (kind === "mp3") return { buffer, mimetype: "audio/mpeg", ext: "mp3" };
+  if (kind === "m4a") return { buffer, mimetype: "audio/mp4", ext: "m4a" };
+  return { buffer: await convertToMp3(buffer), mimetype: "audio/mpeg", ext: "mp3" };
 }
 
 async function remoteSize(url) {
@@ -179,6 +242,7 @@ module.exports = {
   getJson,
   getText,
   getBuffer,
+  toPlayableAudio,
   remoteSize,
   deepFind,
   chain,
