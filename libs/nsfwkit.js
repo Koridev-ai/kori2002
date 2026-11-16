@@ -423,13 +423,36 @@ async function getPurrbot(type) {
   return { url: data.link, ext: "gif" };
 }
 
-async function getNekobot(type) {
-  const data = await getJson("https://nekobot.xyz/api/image", { type });
-  if (!data || data.success === false || typeof data.message !== "string" || !data.message.startsWith("http")) {
-    throw new Error("Nekobot sin resultado");
+async function getWaifuIm(tag) {
+  const attempts = [
+    () =>
+      getJson("https://api.waifu.im/images", {
+        isNsfw: "true",
+        isAnimated: "true",
+        includedTags: tag,
+        pageSize: 30
+      }).then((data) => (Array.isArray(data?.items) ? data.items : [])),
+    () =>
+      getJson("https://api.waifu.im/search", {
+        is_nsfw: "true",
+        gif: "true",
+        included_tags: tag,
+        many: "true"
+      }).then((data) => (Array.isArray(data?.images) ? data.images : []))
+  ];
+  let lastError = null;
+  for (const attempt of attempts) {
+    try {
+      const posts = (await attempt())
+        .filter((p) => typeof p?.url === "string" && p.url.startsWith("http"))
+        .map((p) => ({ url: p.url, ext: extOf(p.url) }))
+        .filter((p) => ["gif", "mp4", "webm"].includes(p.ext));
+      if (posts.length) return shuffle(posts);
+    } catch (e) {
+      lastError = e;
+    }
   }
-  const ext = extOf(data.message);
-  return { url: data.message, ext: MEDIA_EXT.includes(ext) ? ext : "jpg" };
+  throw lastError || new Error("Waifu.im sin resultados");
 }
 
 const REACTION_SOURCES = [
@@ -455,16 +478,16 @@ async function getAnimatedList(tag) {
 }
 
 // Devuelve una lista de candidatos (el primero es el preferido) para poder reintentar si uno falla.
-async function getReactionList({ purr, nekobot, tag }) {
+async function getReactionList({ purr, waifu, tag }) {
   const list = [];
   if (purr) {
     try {
       list.push(await getPurrbot(purr));
     } catch {}
   }
-  if (nekobot) {
+  if (waifu) {
     try {
-      list.push(await getNekobot(nekobot));
+      list.push(...(await getWaifuIm(waifu)).slice(0, 4));
     } catch {}
   }
   try {
@@ -497,4 +520,3 @@ module.exports = {
   convertToMp4,
   extOf
 };
-      
