@@ -50,6 +50,7 @@ function isProtected(p, g, { admins = false } = {}) {
 }
 
 async function ownerCheck(sock, msg, sender) {
+  if (msg.__owner) return true;
   const resolved = await lid.resolve(sock, msg.key.participant, msg).catch(() => null);
   const ids = [sender, lid.user(resolved), lid.user(msg.key.participant), lid.user(msg.key.participantAlt)];
   return ids.some((id) => id && global.isOwner(id));
