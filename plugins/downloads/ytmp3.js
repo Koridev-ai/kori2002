@@ -24,7 +24,8 @@ module.exports = dl.define({
     title = info?.title || media.meta?.title || title;
     const buffer = await dl.getBuffer(media.url);
     if (!buffer.length) throw new Error("No se pudo descargar el audio");
-    await sock.sendMessage(chatId, { audio: buffer, fileName: media.name || `${dl.cleanName(title)}.mp3`, mimetype: "audio/mpeg" }, { quoted: msg });
+    const audio = await dl.toPlayableAudio(buffer);
+    await sock.sendMessage(chatId, { audio: audio.buffer, fileName: `${dl.cleanName(title)}.${audio.ext}`, mimetype: audio.mimetype, ptt: false }, { quoted: msg });
     return kit.react(sock, msg, "✔");
   }
 });
