@@ -33,13 +33,35 @@ function mapping(sock) {
   return sock?.signalRepository?.lidMapping || null;
 }
 
-async function pnFromMessage(jid, msg) {
+const PARTICIPANT_ALTS = ["participantAlt", "participantPn", "participant_pn", "senderPn", "sender_pn"];
+const CHAT_ALTS = ["remoteJidAlt", "remoteJidPn", "remote_jid_pn"];
+const MISS_TTL = 5 * 60 * 1000;
+const ownerLids = new Map();
+
+function altFromMessage(jid, msg) {
   const k = msg?.key || {};
-  const alts = [];
-  if (k.participant && user(k.participant) === user(jid)) alts.push(k.participantAlt);
-  if (k.remoteJid && user(k.remoteJid) === user(jid)) alts.push(k.remoteJidAlt);
-  const alt = alts.find((value) => value && isPn(value));
+  const id = user(jid);
+  const found = [];
+  if (k.participant && user(k.participant) === id) found.push(...PARTICIPANT_ALTS.map((f) => k[f]));
+  if (k.remoteJid && user(k.remoteJid) === id) found.push(...CHAT_ALTS.map((f) => k[f]));
+  const alt = found.find((value) => value && isPn(value));
   return alt ? toPn(alt) : null;
+}
+
+function learn(msg) {
+  const k = msg?.key;
+  if (!k) return;
+  for (const raw of [k.participant, k.remoteJid]) {
+    if (!raw || !isLid(raw)) continue;
+    const pn = altFromMessage(raw, msg);
+    if (pn) remember(pnCache, toLid(raw), pn);
+  }
+}
+
+function jidsOf(msg) {
+  const k = msg?.key || {};
+  const all = [k.participant, k.remoteJid, ...PARTICIPANT_ALTS.map((f) => k[f]), ...CHAT_ALTS.map((f) => k[f])];
+  return all.filter((value) => typeof value === "string" && (isLid(value) || isPn(value)));
 }
 
 async function pnFromStore(sock, jid) {
@@ -72,7 +94,7 @@ async function getPN(sock, jid, msg) {
   if (pnCache.has(cacheKey)) return pnCache.get(cacheKey);
 
   const pn =
-    (await pnFromMessage(jid, msg)) ||
+    altFromMessage(jid, msg) ||
     (await pnFromStore(sock, jid)) ||
     (await pnFromGroup(sock, jid, msg?.key?.remoteJid));
 
@@ -90,9 +112,18 @@ async function getLID(sock, jid) {
 
   const store = mapping(sock);
   const found = await Promise.resolve(store?.getLIDForPN?.(cacheKey)).catch(() => null);
-  const lid = found && isLid(found) ? toLid(found) : null;
+  let lid = found && isLid(found) ? toLid(found) : null;
 
-  if (lid) remember(lidCache, cacheKey, lid);
+  if (!lid && typeof sock?.onWhatsApp === "function") {
+    const result = await sock.onWhatsApp(cacheKey).catch(() => null);
+    const entry = Array.isArray(result) ? result.find((item) => item?.lid && isLid(item.lid)) : null;
+    lid = entry ? toLid(entry.lid) : null;
+  }
+
+  if (lid) {
+    remember(lidCache, cacheKey, lid);
+    remember(pnCache, lid, cacheKey);
+  }
   return lid;
 }
 
@@ -114,6 +145,40 @@ async function sameUser(sock, a, b, msg) {
   return user(ra) === user(rb);
 }
 
+async function ownerLid(sock, number) {
+  const hit = ownerLids.get(number);
+  if (hit && (hit.lid || Date.now() - hit.at < MISS_TTL)) return hit.lid;
+  const lid = await getLID(sock, `${number}${PN_SERVER}`).catch(() => null);
+  remember(ownerLids, number, { lid: lid ? user(lid) : null, at: Date.now() });
+  return lid ? user(lid) : null;
+}
+
+async function isListed(sock, msg, list, extra = []) {
+  const wanted = new Set((list || []).map((entry) => user(Array.isArray(entry) ? entry[0] : entry)).filter(Boolean));
+  if (!wanted.size) return false;
+
+  const lids = new Set();
+  const jids = [...jidsOf(msg), ...(extra || []).filter(Boolean)];
+
+  for (const jid of jids) {
+    const id = user(jid);
+    if (!id) continue;
+    if (wanted.has(id)) return true;
+    if (!isLid(jid)) continue;
+    lids.add(id);
+    const pn = await getPN(sock, jid, msg).catch(() => null);
+    if (pn && wanted.has(user(pn))) return true;
+  }
+
+  if (!lids.size) return false;
+
+  for (const number of wanted) {
+    const mapped = await ownerLid(sock, number);
+    if (mapped && lids.has(mapped)) return true;
+  }
+  return false;
+}
+
 module.exports = {
   isLid,
   isPn,
@@ -124,5 +189,7 @@ module.exports = {
   getLID,
   resolve,
   number,
-  sameUser
+  sameUser,
+  learn,
+  isListed
 };
