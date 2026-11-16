@@ -64,6 +64,8 @@ async function handle(sock, msg, bot) {
   const chatId = msg?.key?.remoteJid;
   if (!chatId || chatId === "status@broadcast" || chatId.endsWith("@broadcast") || chatId.endsWith("@newsletter")) return;
 
+  lid.learn(msg);
+
   const botNumber = botconf.number(sock.user?.id);
   if (!botNumber) return;
   const isGroup = chatId.endsWith("@g.us");
@@ -97,7 +99,10 @@ async function handle(sock, msg, bot) {
     console.log(chalk.gray("──────────────────────────"));
   }
 
-  if (!isGroup && bot.isMain && !fromMe && !(typeof global.isOwner === "function" && global.isOwner(sender)) && !isAllowedUser(sender)) return;
+  if (!isGroup && bot.isMain && !fromMe && !isAllowedUser(sender)) {
+    const ownerDm = await lid.isListed(sock, msg, global.owner, [sender]).catch(() => false);
+    if (!ownerDm) return;
+  }
 
   let isHandler = true;
   if (isGroup) {
@@ -118,7 +123,10 @@ async function handle(sock, msg, bot) {
   if (botconf.SOCKET_CMDS.has(lower) && sender !== botNumber && botconf.isLive(sender)) return;
 
   const ids = await senderIds(sock, msg, sender);
-  const role = botconf.role({ id: botNumber }, ids, fromMe);
+  const isOwnerSender = await lid.isListed(sock, msg, global.owner, ids).catch(() => false);
+  const isModSender = isOwnerSender || (await lid.isListed(sock, msg, global.mods, ids).catch(() => false));
+  let role = botconf.role({ id: botNumber }, ids, fromMe);
+  if (role === "none" && isOwnerSender) role = "global";
 
   if (settings.self && role === "none") return;
   if (!isGroup && !bot.isMain && role === "none" && !isAllowedUser(sender) && !botconf.PRIVATE_OPEN.has(lower)) return;
@@ -129,6 +137,8 @@ async function handle(sock, msg, bot) {
 
   msg.__sub = !bot.isMain;
   msg.__role = role;
+  msg.__owner = isOwnerSender;
+  msg.__mod = isModSender;
 
   const extra = {
     usedPrefix: matched.prefix,
