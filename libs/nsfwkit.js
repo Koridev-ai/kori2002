@@ -16,7 +16,9 @@ const REFERERS = {
   "donmai.us": "https://danbooru.donmai.us/",
   "yande.re": "https://yande.re/",
   "konachan.com": "https://konachan.com/",
-  "xbooru.com": "https://xbooru.com/"
+  "xbooru.com": "https://xbooru.com/",
+  "allthefallen.moe": "https://booru.allthefallen.moe/",
+  "tbib.org": "https://tbib.org/"
 };
 const MEDIA_EXT = ["jpg", "jpeg", "png", "gif", "mp4", "webm", "webp"];
 const BLOCKED_TAGS = new Set([
@@ -200,21 +202,21 @@ function normalize(items, { ext, getUrl, getTags, getRating, extra, animeOnly = 
   return out;
 }
 
-async function fromDanbooru(tags, animated, anime = animated) {
+async function fromDanbooru(tags, animated, anime = animated, base = "https://danbooru.donmai.us") {
   const first = tags[0] || "";
   // Danbooru deja solo 2 tags a usuarios anónimos: cada intento usa como máximo 2.
   const attempts = animated
-    ? [`${first} animated`, `${first} animated_gif`, `${first} video`]
+    ? [`${first} animated`, `${first} animated_gif`, `${first} video`, first]
     : [`${first} rating:explicit`, `${first} rating:questionable`];
   let lastError = null;
   for (const query of attempts) {
     try {
-      const params = { tags: query.trim(), limit: 40, random: "true" };
-      if (process.env.DANBOORU_LOGIN && process.env.DANBOORU_API_KEY) {
+      const params = { tags: query.trim(), limit: query.trim() === first ? 100 : 40, random: "true" };
+      if (base === "https://danbooru.donmai.us" && process.env.DANBOORU_LOGIN && process.env.DANBOORU_API_KEY) {
         params.login = process.env.DANBOORU_LOGIN;
         params.api_key = process.env.DANBOORU_API_KEY;
       }
-      const data = await getJson("https://danbooru.donmai.us/posts.json", params);
+      const data = await getJson(`${base}/posts.json`, params);
       const posts = normalize(data, {
         ext: (p, url) => (p.file_ext || extOf(url)).toLowerCase(),
         getUrl: (p) => {
@@ -269,6 +271,32 @@ async function fromXbooru(tags, animated = false) {
       getTags: (p) => p.tags,
       getRating: (p) => p.rating || "e",
       extra: { referer: "https://xbooru.com/" }
+    }
+  );
+  return animated ? posts.filter((p) => ["mp4", "gif", "webm"].includes(p.ext)) : posts;
+}
+
+async function fromGelbooru02(base, referer, tags, animated = false, anime = animated) {
+  const data = await getJson(`${base}/index.php`, {
+    page: "dapi",
+    s: "post",
+    q: "index",
+    json: 1,
+    limit: 100,
+    tags: [...tags, ...(animated ? ["animated"] : [])].join(" ")
+  });
+  const list = Array.isArray(data) ? data : Array.isArray(data?.post) ? data.post : [];
+  const posts = normalize(
+    list.map((p) => ({
+      ...p,
+      built: p.file_url || (p.directory && p.image ? `${base}/images/${p.directory}/${p.image}` : null)
+    })),
+    {
+      getUrl: (p) => p.built,
+      getTags: (p) => p.tags,
+      getRating: (p) => p.rating || "e",
+      extra: { referer },
+      animeOnly: anime
     }
   );
   return animated ? posts.filter((p) => ["mp4", "gif", "webm"].includes(p.ext)) : posts;
@@ -458,7 +486,11 @@ async function getWaifuIm(tag) {
 const REACTION_SOURCES = [
   { name: "danbooru", run: (tag, animated) => fromDanbooru([tag], animated, true) },
   { name: "yande.re", run: (tag, animated) => fromMoebooru("https://yande.re", "https://yande.re/", [tag], animated, true) },
-  { name: "konachan", run: (tag, animated) => fromMoebooru("https://konachan.com", "https://konachan.com/", [tag], animated, true) }
+  { name: "konachan", run: (tag, animated) => fromMoebooru("https://konachan.com", "https://konachan.com/", [tag], animated, true) },
+  { name: "allthefallen", run: (tag, animated) => fromDanbooru([tag], animated, true, "https://booru.allthefallen.moe") },
+  { name: "hijiribe", run: (tag, animated) => fromDanbooru([tag], animated, true, "https://hijiribe.donmai.us") },
+  { name: "tbib", run: (tag, animated) => fromGelbooru02("https://tbib.org", "https://tbib.org/", [tag], animated, true) },
+  { name: "xbooru", run: (tag, animated) => fromGelbooru02("https://xbooru.com", "https://xbooru.com/", [tag], animated, true) }
 ];
 
 // Busca en todas las fuentes anime; si no hay animados, cae a imágenes estáticas del mismo tag.
@@ -522,4 +554,4 @@ module.exports = {
   convertToMp4,
   extOf
 };
-                   
+                                
