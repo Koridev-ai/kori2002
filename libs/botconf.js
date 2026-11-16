@@ -47,7 +47,8 @@ const SOCKET_CMDS = new Set([
   "leave",
   "salir",
   "logout",
-  "reload"
+  "reload",
+  "setprimary"
 ]);
 
 const PRIVATE_OPEN = new Set([
