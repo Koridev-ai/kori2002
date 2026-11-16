@@ -4,6 +4,7 @@ const os = require("os");
 const kit = require("../../libs/pluginkit");
 const pdb = require("../../libs/profiledb");
 const main = require("../../libs/mainkit");
+const botconf = require("../../libs/botconf");
 
 function uptimeText(seconds) {
   const s = Number(seconds);
@@ -27,8 +28,13 @@ const handler = async (msg, ctx = {}) => {
   const command = ctx.command || "infobot";
 
   try {
-    const botName = sock.user?.name || "Bot";
-    const ownerId = String((global.owner || [])[0]?.[0] || "").replace(/[^0-9]/g, "");
+    const botId = ctx.botId || botconf.number(sock.user?.id);
+    const settings = botconf.get(botId);
+    const botName = settings.namebot || settings.botname || sock.user?.name || "Bot";
+    const globalOwner = String((global.owner || [])[0]?.[0] || "").replace(/[^0-9]/g, "");
+    const ownerId = ctx.isSub ? botconf.number(settings.owner) || botId : globalOwner;
+    const prefixText = settings.noprefix ? "sin prefijo" : botconf.prefixes(botId).map((p) => `\`${p}\``).join(" ");
+    const extraLines = `${settings.link ? `\n❒ *Enlace ›* ${settings.link}` : ""}${settings.channel ? `\n❒ *Canal ›* ${settings.channel}` : ""}`;
     const ownerGenre = ownerId ? pdb.peek(ownerId)?.genre : "";
     const ownerLabel = ownerGenre === "Hombre" ? "Dueño" : ownerGenre === "Mujer" ? "Dueña" : "Dueño(a)";
     const ownerJid = ownerId ? `${ownerId}@s.whatsapp.net` : null;
@@ -44,14 +50,14 @@ const handler = async (msg, ctx = {}) => {
     const text = `✐ Información del bot *${botName}!*
 
 ✿ *Nombre ›* ${botName}
-✦ *Prefijo ›* \`${usedPrefix}\`
+✦ *Prefijo ›* ${prefixText}
 
 ❒ *Plataforma ›* ${os.type()}
 ❒ *NodeJS ›* ${process.version}
 ❒ *RAM Utilizada ›* ${ram}
 ❒ *Activo desde ›* ${startedText}
 ❒ *Sistema Activo ›* ${uptimeText(os.uptime())}
-❒ *${ownerLabel} ›* ${ownerJid ? `@${ownerId}` : "Oculto por privacidad"}`;
+❒ *${ownerLabel} ›* ${ownerJid ? `@${ownerId}` : "Oculto por privacidad"}${extraLines}`;
 
     return main.sendWithBanner(sock, msg, text, ownerJid ? [ownerJid] : []);
   } catch (e) {
