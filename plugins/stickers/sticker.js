@@ -54,11 +54,15 @@ function buildFilters(effects) {
   const shape = effects.find((e) => e.type === "shape")?.value;
   const effectList = effects.filter((e) => e.type === "effect").map((e) => e.value);
 
-  if (shape === "cover") {
-    filters.push(`scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}`);
-  } else {
+  // Igual que Eris: sin forma el sticker se estira a 512x512 (siempre cuadrado),
+  // con -i se mantiene la proporción con bordes transparentes, y con -x o cualquier forma se recorta.
+  if (!shape) {
+    filters.push(`scale=${W}:${H}`);
+  } else if (shape === "contain") {
     filters.push(`scale=${W}:${H}:force_original_aspect_ratio=decrease`);
     filters.push(`pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=0x00000000`);
+  } else {
+    filters.push(`scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}`);
   }
   filters.push("format=rgba");
 
