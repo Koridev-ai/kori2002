@@ -10,7 +10,7 @@ const handler = async (msg, ctx = {}) => {
   const sock = ctx.conn;
   const chatId = msg.key.remoteJid;
 
-  if (!(msg.key.fromMe && !ctx.isSub) && !global.isOwner(ctx.sender || "")) {
+  if (!(msg.key.fromMe && !ctx.isSub) && !msg.__owner && !global.isOwner(ctx.sender || "")) {
     return kit.reply(sock, msg, "《✧》 Este comando es solo para el owner.");
   }
 
