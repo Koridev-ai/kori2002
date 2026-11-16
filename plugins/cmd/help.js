@@ -118,7 +118,7 @@ const handler = async (msg, ctx = {}) => {
   const mentions = sender ? [sender] : [];
 
   try {
-    await sock.sendMessage(chatId, { image: botmedia.bannerBuffer(botId) || fs.readFileSync(MENU_BANNER), caption: menuText, mentions }, { quoted: msg });
+    await sock.sendMessage(chatId, { ...botmedia.bannerImage(botId, MENU_BANNER), caption: menuText, mentions }, { quoted: msg });
   } catch (error) {
     console.error("❌ No se pudo enviar el menú con imagen:", error.message);
     await sock.sendMessage(chatId, { text: menuText, mentions }, { quoted: msg });
