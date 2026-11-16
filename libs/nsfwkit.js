@@ -158,14 +158,29 @@ async function getText(url, headers = {}) {
 
 async function getBuffer(url, referer) {
   const ref = referer || refererFor(url);
-  const res = await axios.get(url, {
+  const config = (headers) => ({
     responseType: "arraybuffer",
-    headers: { "User-Agent": UA, ...(ref ? { Referer: ref } : {}) },
+    headers,
     timeout: 45000,
     maxContentLength: 60 * 1024 * 1024,
     maxBodyLength: 60 * 1024 * 1024
   });
-  return Buffer.from(res.data);
+  const attempts = [
+    { "User-Agent": UA, ...(ref ? { Referer: ref } : {}) },
+    { "User-Agent": UA },
+    { "User-Agent": API_UA, Accept: "*/*" }
+  ];
+  let lastError = null;
+  for (const headers of attempts) {
+    try {
+      const res = await axios.get(url, config(headers));
+      return Buffer.from(res.data);
+    } catch (e) {
+      lastError = e;
+      if (e?.response?.status !== 403) throw e;
+    }
+  }
+  throw lastError;
 }
 
 function normalize(items, { ext, getUrl, getTags, getRating, extra, animeOnly = false }) {
@@ -482,3 +497,4 @@ module.exports = {
   convertToMp4,
   extOf
 };
+      
