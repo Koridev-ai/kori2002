@@ -408,6 +408,15 @@ async function getPurrbot(type) {
   return { url: data.link, ext: "gif" };
 }
 
+async function getNekobot(type) {
+  const data = await getJson("https://nekobot.xyz/api/image", { type });
+  if (!data || data.success === false || typeof data.message !== "string" || !data.message.startsWith("http")) {
+    throw new Error("Nekobot sin resultado");
+  }
+  const ext = extOf(data.message);
+  return { url: data.message, ext: MEDIA_EXT.includes(ext) ? ext : "jpg" };
+}
+
 const REACTION_SOURCES = [
   { name: "danbooru", run: (tag, animated) => fromDanbooru([tag], animated, true) },
   { name: "yande.re", run: (tag, animated) => fromMoebooru("https://yande.re", "https://yande.re/", [tag], animated, true) },
@@ -431,11 +440,16 @@ async function getAnimatedList(tag) {
 }
 
 // Devuelve una lista de candidatos (el primero es el preferido) para poder reintentar si uno falla.
-async function getReactionList({ purr, tag }) {
+async function getReactionList({ purr, nekobot, tag }) {
   const list = [];
   if (purr) {
     try {
       list.push(await getPurrbot(purr));
+    } catch {}
+  }
+  if (nekobot) {
+    try {
+      list.push(await getNekobot(nekobot));
     } catch {}
   }
   try {
