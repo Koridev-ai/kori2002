@@ -15,7 +15,7 @@ module.exports = eco.define({
     const t = gk.target(msg, g);
     if (!t) return kit.reply(sock, msg, "❀ Debes mencionar a alguien para intentar robarle.");
     if (eco.key(t.jid) === eco.key(jid)) return kit.reply(sock, msg, "ꕥ No puedes robarte a ti mismo.");
-    const target = eco.peek(g.chatId, t.jid);
+    const target = eco.peek(t.jid);
     if (!t || !t.p || !target) return kit.reply(sock, msg, "ꕥ El usuario no se encuentra en mi base de datos.");
     const name = pdb.peek(t.jid)?.name || `@${t.number}`;
     const lastSeen = gdb.peekUser(g.chatId, t.jid)?.last || 0;
