@@ -11,6 +11,13 @@ const lid = require("./lid");
 
 const FILE = path.resolve(__dirname, "..", "src", "nsfw.json");
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
+const API_UA = "Mozilla/5.0 (compatible; KoriBot/1.0; +https://github.com/kori2002)";
+const REFERERS = {
+  "donmai.us": "https://danbooru.donmai.us/",
+  "yande.re": "https://yande.re/",
+  "konachan.com": "https://konachan.com/",
+  "xbooru.com": "https://xbooru.com/"
+};
 const MEDIA_EXT = ["jpg", "jpeg", "png", "gif", "mp4", "webm", "webp"];
 const BLOCKED_TAGS = new Set([
   "loli", "lolicon", "shota", "shotacon", "child", "children", "toddler", "toddlercon", "underage",
@@ -94,12 +101,28 @@ function shuffle(list) {
 }
 
 async function getJson(url, params, headers = {}) {
-  const res = await axios.get(url, {
+  const config = (ua) => ({
     params,
-    headers: { "User-Agent": UA, Accept: "application/json", ...headers },
+    headers: { "User-Agent": ua, Accept: "application/json", ...headers },
     timeout: 15000
   });
-  return res.data;
+  try {
+    return (await axios.get(url, config(API_UA))).data;
+  } catch (e) {
+    // Algunos sitios (Cloudflare) bloquean según el User-Agent: reintenta con el otro.
+    if (e?.response?.status !== 403) throw e;
+    return (await axios.get(url, config(UA))).data;
+  }
+}
+
+function refererFor(url) {
+  try {
+    const host = new URL(url).hostname;
+    const key = Object.keys(REFERERS).find((domain) => host === domain || host.endsWith("." + domain));
+    return key ? REFERERS[key] : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 async function getText(url, headers = {}) {
@@ -113,9 +136,10 @@ async function getText(url, headers = {}) {
 }
 
 async function getBuffer(url, referer) {
+  const ref = referer || refererFor(url);
   const res = await axios.get(url, {
     responseType: "arraybuffer",
-    headers: { "User-Agent": UA, ...(referer ? { Referer: referer } : {}) },
+    headers: { "User-Agent": UA, ...(ref ? { Referer: ref } : {}) },
     timeout: 45000,
     maxContentLength: 60 * 1024 * 1024,
     maxBodyLength: 60 * 1024 * 1024
@@ -143,7 +167,12 @@ async function fromDanbooru(tags, animated) {
   const first = tags[0] || "";
   const attempts = animated ? [`${first} animated`] : [`${first} rating:explicit`, `${first} rating:questionable`];
   for (const query of attempts) {
-    const data = await getJson("https://danbooru.donmai.us/posts.json", { tags: query.trim(), limit: 40, random: "true" });
+    const params = { tags: query.trim(), limit: 40, random: "true" };
+    if (process.env.DANBOORU_LOGIN && process.env.DANBOORU_API_KEY) {
+      params.login = process.env.DANBOORU_LOGIN;
+      params.api_key = process.env.DANBOORU_API_KEY;
+    }
+    const data = await getJson("https://danbooru.donmai.us/posts.json", params);
     const posts = normalize(data, {
       ext: (p, url) => (p.file_ext || extOf(url)).toLowerCase(),
       getUrl: (p) => {
@@ -159,31 +188,32 @@ async function fromDanbooru(tags, animated) {
   return [];
 }
 
-async function fromMoebooru(base, referer, tags) {
+async function fromMoebooru(base, referer, tags, animated = false) {
   const data = await getJson(`${base}/post.json`, {
-    tags: [...tags, "-rating:safe", "order:random"].join(" "),
+    tags: [...tags, ...(animated ? ["animated"] : []), "-rating:safe", "order:random"].join(" "),
     limit: 40
   });
-  return normalize(data, {
+  const posts = normalize(data, {
     ext: (p, url) => (p.file_ext || extOf(url)).toLowerCase(),
     getUrl: (p) => p.file_url || p.sample_url,
     getTags: (p) => p.tags,
     getRating: (p) => p.rating,
     extra: { referer }
   });
+  return animated ? posts.filter((p) => ["mp4", "gif", "webm"].includes(p.ext)) : posts;
 }
 
-async function fromXbooru(tags) {
+async function fromXbooru(tags, animated = false) {
   const data = await getJson("https://xbooru.com/index.php", {
     page: "dapi",
     s: "post",
     q: "index",
     json: 1,
     limit: 60,
-    tags: tags.join(" ")
+    tags: [...tags, ...(animated ? ["animated"] : [])].join(" ")
   });
   const list = Array.isArray(data) ? data : [];
-  return normalize(
+  const posts = normalize(
     list.map((p) => ({
       ...p,
       built: p.file_url || (p.directory && p.image ? `https://xbooru.com/images/${p.directory}/${p.image}` : null)
@@ -195,6 +225,7 @@ async function fromXbooru(tags) {
       extra: { referer: "https://xbooru.com/" }
     }
   );
+  return animated ? posts.filter((p) => ["mp4", "gif", "webm"].includes(p.ext)) : posts;
 }
 
 const SOURCES = {
@@ -346,19 +377,44 @@ async function getPurrbot(type) {
   return { url: data.link, ext: "gif" };
 }
 
-async function getAnimated(tag) {
-  const posts = await fromDanbooru([tag], true);
-  if (!posts.length) throw new Error("Sin resultados animados");
-  return shuffle(posts)[0];
+const ANIMATED_SOURCES = [
+  (tag) => fromDanbooru([tag], true),
+  (tag) => fromMoebooru("https://yande.re", "https://yande.re/", [tag], true),
+  (tag) => fromMoebooru("https://konachan.com", "https://konachan.com/", [tag], true),
+  (tag) => fromXbooru([tag], true)
+];
+
+async function getAnimatedList(tag) {
+  let lastError = null;
+  for (const run of ANIMATED_SOURCES) {
+    try {
+      const posts = await run(tag);
+      if (posts.length) return shuffle(posts);
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  throw lastError || new Error("Sin resultados animados");
 }
 
-async function getReaction({ purr, tag }) {
+// Devuelve una lista de candidatos (el primero es el preferido) para poder reintentar si uno falla.
+async function getReactionList({ purr, tag }) {
+  const list = [];
   if (purr) {
     try {
-      return await getPurrbot(purr);
+      list.push(await getPurrbot(purr));
     } catch {}
   }
-  return getAnimated(tag);
+  try {
+    list.push(...(await getAnimatedList(tag)).slice(0, 6));
+  } catch (e) {
+    if (!list.length) throw e;
+  }
+  return list;
+}
+
+async function getReaction(reaction) {
+  return (await getReactionList(reaction))[0];
 }
 
 module.exports = {
@@ -375,6 +431,8 @@ module.exports = {
   searchBooru,
   booruPlugin,
   getReaction,
+  getReactionList,
   convertToMp4,
   extOf
 };
+  
