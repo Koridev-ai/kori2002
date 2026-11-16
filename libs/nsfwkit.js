@@ -462,15 +462,17 @@ const REACTION_SOURCES = [
 ];
 
 // Busca en todas las fuentes anime; si no hay animados, cae a imágenes estáticas del mismo tag.
-async function getAnimatedList(tag) {
+async function getAnimatedList(tag, gifOnly = false, alt = []) {
   const errors = [];
-  for (const animated of [true, false]) {
-    for (const source of REACTION_SOURCES) {
-      try {
-        const posts = await source.run(tag, animated);
-        if (posts.length) return shuffle(posts);
-      } catch (e) {
-        errors.push(`${source.name}: ${errInfo(e)}`);
+  for (const animated of gifOnly ? [true] : [true, false]) {
+    for (const name of [tag, ...alt]) {
+      for (const source of REACTION_SOURCES) {
+        try {
+          const posts = await source.run(name, animated);
+          if (posts.length) return shuffle(posts);
+        } catch (e) {
+          errors.push(`${source.name}: ${errInfo(e)}`);
+        }
       }
     }
   }
@@ -478,7 +480,7 @@ async function getAnimatedList(tag) {
 }
 
 // Devuelve una lista de candidatos (el primero es el preferido) para poder reintentar si uno falla.
-async function getReactionList({ purr, waifu, tag }) {
+async function getReactionList({ purr, waifu, tag, alt, gifOnly }) {
   const list = [];
   if (purr) {
     try {
@@ -491,7 +493,7 @@ async function getReactionList({ purr, waifu, tag }) {
     } catch {}
   }
   try {
-    list.push(...(await getAnimatedList(tag)).slice(0, 6));
+    list.push(...(await getAnimatedList(tag, gifOnly, alt)).slice(0, 6));
   } catch (e) {
     if (!list.length) throw e;
   }
@@ -520,3 +522,4 @@ module.exports = {
   convertToMp4,
   extOf
 };
+                   
