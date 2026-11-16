@@ -20,13 +20,13 @@ module.exports = gacha.define({
       return kit.reply(sock, msg, `ꕥ La venta de *${sale.name}* ha expirado.`);
     }
 
-    const buyer = eco.account(chatId, jid);
+    const buyer = eco.account(jid);
     if (buyer.coins < sale.price) {
       return kit.reply(sock, msg, `ꕥ No tienes suficiente dinero en la cartera para comprar a *${sale.name}*.\n> Necesitas *${eco.money(sale.price)}*`);
     }
 
     const sellerJid = gacha.mentionJid(sale.seller);
-    const seller = eco.account(chatId, sellerJid);
+    const seller = eco.account(sellerJid);
     buyer.coins -= sale.price;
     seller.coins += sale.price;
     eco.save();
