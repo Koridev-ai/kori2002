@@ -24,6 +24,13 @@ const BLOCKED_TAGS = new Set([
   "preteen", "prepubescent", "infant", "baby", "minor", "aged_down", "age_regression", "kindergarten", "school_age"
 ]);
 
+// Tags que indican contenido que no es anime/ilustración (3D, fotos, cosplay, etc.).
+const NON_ANIME_TAGS = new Set([
+  "3d", "3d_animation", "mmd", "mikumikudance", "source_filmmaker", "blender_(medium)", "koikatsu",
+  "realistic", "photorealistic", "real_life", "real_life_insert", "photo_(medium)", "photo",
+  "cosplay", "cosplay_photo", "live_action", "irl", "real", "western", "furry", "cartoon", "pixel_art"
+]);
+
 let store = null;
 
 function load() {
@@ -77,6 +84,13 @@ function isBlockedQuery(text) {
     .split(/[\s,+]+/)
     .filter(Boolean)
     .some((token) => BLOCKED_TAGS.has(token) || /loli|shota/.test(token));
+}
+
+function isNonAnime(tagString) {
+  return String(tagString || "")
+    .toLowerCase()
+    .split(/\s+/)
+    .some((token) => NON_ANIME_TAGS.has(token));
 }
 
 function isFlagged(tagString) {
@@ -147,7 +161,7 @@ async function getBuffer(url, referer) {
   return Buffer.from(res.data);
 }
 
-function normalize(items, { ext, getUrl, getTags, getRating, extra }) {
+function normalize(items, { ext, getUrl, getTags, getRating, extra, animeOnly = false }) {
   const out = [];
   for (const item of Array.isArray(items) ? items : []) {
     const url = getUrl(item);
@@ -156,6 +170,7 @@ function normalize(items, { ext, getUrl, getTags, getRating, extra }) {
     if (!MEDIA_EXT.includes(kind)) continue;
     const tags = getTags(item);
     if (isFlagged(tags)) continue;
+    if (animeOnly && isNonAnime(tags)) continue;
     const rating = String(getRating(item) || "").toLowerCase();
     if (!["e", "q"].includes(rating[0])) continue;
     out.push({ url, ext: kind, referer: extra?.referer });
@@ -180,7 +195,8 @@ async function fromDanbooru(tags, animated) {
         return ["jpg", "jpeg", "png"].includes(ext) ? p.large_file_url || p.file_url : p.file_url;
       },
       getTags: (p) => p.tag_string,
-      getRating: (p) => p.rating
+      getRating: (p) => p.rating,
+      animeOnly: animated
     });
     if (animated) return posts.filter((p) => ["mp4", "gif", "webm"].includes(p.ext));
     if (posts.length) return posts;
@@ -198,7 +214,8 @@ async function fromMoebooru(base, referer, tags, animated = false) {
     getUrl: (p) => p.file_url || p.sample_url,
     getTags: (p) => p.tags,
     getRating: (p) => p.rating,
-    extra: { referer }
+    extra: { referer },
+    animeOnly: animated
   });
   return animated ? posts.filter((p) => ["mp4", "gif", "webm"].includes(p.ext)) : posts;
 }
@@ -380,8 +397,7 @@ async function getPurrbot(type) {
 const ANIMATED_SOURCES = [
   (tag) => fromDanbooru([tag], true),
   (tag) => fromMoebooru("https://yande.re", "https://yande.re/", [tag], true),
-  (tag) => fromMoebooru("https://konachan.com", "https://konachan.com/", [tag], true),
-  (tag) => fromXbooru([tag], true)
+  (tag) => fromMoebooru("https://konachan.com", "https://konachan.com/", [tag], true)
 ];
 
 async function getAnimatedList(tag) {
@@ -435,4 +451,3 @@ module.exports = {
   convertToMp4,
   extOf
 };
-  
