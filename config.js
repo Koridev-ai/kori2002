@@ -11,7 +11,7 @@ const config = JSON.parse(fs.readFileSync(configFilePath, "utf-8"));
 global.prefix = config.prefix || ".";
 
 global.owner = [
-    ["15167096032", "Owner", true]
+    ["526631079388", "Owner", true]
 ];
 
 global.mods = [
