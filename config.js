@@ -16,15 +16,15 @@ global.owner = [
 
 global.mods = [
     ["115724051816605"]
-    ];
+];
 
 global.isOwner = (user) => {
-    user = user.replace(/[^0-9]/g, "");
+    user = String(user || "").replace(/[^0-9]/g, "");
     return global.owner.some((owner) => owner[0] === user);
 };
 
 global.isMod = (user) => {
-    user = user.replace(/[^0-9]/g, "");
+    user = String(user || "").replace(/[^0-9]/g, "");
     return global.isOwner(user) || global.mods.some((mod) => mod[0] === user);
 };
 
