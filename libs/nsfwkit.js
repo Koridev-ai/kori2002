@@ -129,6 +129,13 @@ async function getJson(url, params, headers = {}) {
   }
 }
 
+function errInfo(e) {
+  const status = e?.response?.status;
+  const d = e?.response?.data;
+  const detail = typeof d === "string" ? d.replace(/\s+/g, " ").slice(0, 80) : d?.message || d?.error || d?.reason || "";
+  return [status, detail || (status ? "" : e?.message)].filter(Boolean).join(" ");
+}
+
 function refererFor(url) {
   try {
     const host = new URL(url).hostname;
@@ -178,44 +185,51 @@ function normalize(items, { ext, getUrl, getTags, getRating, extra, animeOnly = 
   return out;
 }
 
-async function fromDanbooru(tags, animated) {
+async function fromDanbooru(tags, animated, anime = animated) {
   const first = tags[0] || "";
-  const attempts = animated ? [`${first} animated`] : [`${first} rating:explicit`, `${first} rating:questionable`];
+  // Danbooru deja solo 2 tags a usuarios anónimos: cada intento usa como máximo 2.
+  const attempts = animated
+    ? [`${first} animated`, `${first} animated_gif`, `${first} video`]
+    : [`${first} rating:explicit`, `${first} rating:questionable`];
+  let lastError = null;
   for (const query of attempts) {
-    const params = { tags: query.trim(), limit: 40, random: "true" };
-    if (process.env.DANBOORU_LOGIN && process.env.DANBOORU_API_KEY) {
-      params.login = process.env.DANBOORU_LOGIN;
-      params.api_key = process.env.DANBOORU_API_KEY;
+    try {
+      const params = { tags: query.trim(), limit: 40, random: "true" };
+      if (process.env.DANBOORU_LOGIN && process.env.DANBOORU_API_KEY) {
+        params.login = process.env.DANBOORU_LOGIN;
+        params.api_key = process.env.DANBOORU_API_KEY;
+      }
+      const data = await getJson("https://danbooru.donmai.us/posts.json", params);
+      const posts = normalize(data, {
+        ext: (p, url) => (p.file_ext || extOf(url)).toLowerCase(),
+        getUrl: (p) => {
+          const ext = String(p.file_ext || "").toLowerCase();
+          return ["jpg", "jpeg", "png"].includes(ext) ? p.large_file_url || p.file_url : p.file_url;
+        },
+        getTags: (p) => p.tag_string,
+        getRating: (p) => p.rating,
+        animeOnly: anime
+      });
+      const usable = animated ? posts.filter((p) => ["mp4", "gif", "webm"].includes(p.ext)) : posts;
+      if (usable.length) return usable;
+    } catch (e) {
+      lastError = e;
     }
-    const data = await getJson("https://danbooru.donmai.us/posts.json", params);
-    const posts = normalize(data, {
-      ext: (p, url) => (p.file_ext || extOf(url)).toLowerCase(),
-      getUrl: (p) => {
-        const ext = String(p.file_ext || "").toLowerCase();
-        return ["jpg", "jpeg", "png"].includes(ext) ? p.large_file_url || p.file_url : p.file_url;
-      },
-      getTags: (p) => p.tag_string,
-      getRating: (p) => p.rating,
-      animeOnly: animated
-    });
-    if (animated) return posts.filter((p) => ["mp4", "gif", "webm"].includes(p.ext));
-    if (posts.length) return posts;
   }
+  if (lastError) throw lastError;
   return [];
 }
 
-async function fromMoebooru(base, referer, tags, animated = false) {
-  const data = await getJson(`${base}/post.json`, {
-    tags: [...tags, ...(animated ? ["animated"] : []), "-rating:safe", "order:random"].join(" "),
-    limit: 40
-  });
+async function fromMoebooru(base, referer, tags, animated = false, anime = animated) {
+  const query = animated ? [...tags, "animated", "order:random"] : [...tags, "-rating:safe", "order:random"];
+  const data = await getJson(`${base}/post.json`, { tags: query.join(" "), limit: 40 });
   const posts = normalize(data, {
     ext: (p, url) => (p.file_ext || extOf(url)).toLowerCase(),
     getUrl: (p) => p.file_url || p.sample_url,
     getTags: (p) => p.tags,
     getRating: (p) => p.rating,
     extra: { referer },
-    animeOnly: animated
+    animeOnly: anime
   });
   return animated ? posts.filter((p) => ["mp4", "gif", "webm"].includes(p.ext)) : posts;
 }
@@ -394,23 +408,26 @@ async function getPurrbot(type) {
   return { url: data.link, ext: "gif" };
 }
 
-const ANIMATED_SOURCES = [
-  (tag) => fromDanbooru([tag], true),
-  (tag) => fromMoebooru("https://yande.re", "https://yande.re/", [tag], true),
-  (tag) => fromMoebooru("https://konachan.com", "https://konachan.com/", [tag], true)
+const REACTION_SOURCES = [
+  { name: "danbooru", run: (tag, animated) => fromDanbooru([tag], animated, true) },
+  { name: "yande.re", run: (tag, animated) => fromMoebooru("https://yande.re", "https://yande.re/", [tag], animated, true) },
+  { name: "konachan", run: (tag, animated) => fromMoebooru("https://konachan.com", "https://konachan.com/", [tag], animated, true) }
 ];
 
+// Busca en todas las fuentes anime; si no hay animados, cae a imágenes estáticas del mismo tag.
 async function getAnimatedList(tag) {
-  let lastError = null;
-  for (const run of ANIMATED_SOURCES) {
-    try {
-      const posts = await run(tag);
-      if (posts.length) return shuffle(posts);
-    } catch (e) {
-      lastError = e;
+  const errors = [];
+  for (const animated of [true, false]) {
+    for (const source of REACTION_SOURCES) {
+      try {
+        const posts = await source.run(tag, animated);
+        if (posts.length) return shuffle(posts);
+      } catch (e) {
+        errors.push(`${source.name}: ${errInfo(e)}`);
+      }
     }
   }
-  throw lastError || new Error("Sin resultados animados");
+  throw new Error(errors.length ? `Sin resultados (${errors.join(" | ")})` : "Sin resultados para esta reacción");
 }
 
 // Devuelve una lista de candidatos (el primero es el preferido) para poder reintentar si uno falla.
