@@ -13,7 +13,7 @@ module.exports = eco.define({
     let target = me;
     let label = "";
     if (t) {
-      target = eco.peek(g.chatId, t.jid);
+      target = eco.peek(t.jid);
       if (!target) return kit.reply(sock, msg, "「✎」 El usuario mencionado no está registrado en el bot.");
       label = pdb.peek(t.jid)?.name || `@${t.number}`;
     }
