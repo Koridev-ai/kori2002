@@ -7,13 +7,13 @@ const pdb = require("../../libs/profiledb");
 module.exports = eco.define({
   commands: ["economyboard", "eboard", "baltop"],
   description: "Ver el ranking de usuarios con más coins.",
-  run: async ({ sock, msg, chatId, args, usedPrefix, command }) => {
+  run: async ({ sock, msg, args, usedPrefix, command }) => {
     const rows = eco
-      .all(chatId)
+      .all()
       .map((a) => ({ name: pdb.peek(a.id)?.name || a.id, total: a.coins + a.bank }))
       .filter((r) => r.total >= 1000)
       .sort((a, b) => b.total - a.total);
-    if (!rows.length) return kit.reply(sock, msg, `ꕥ No hay usuarios en el grupo con más de 1,000 ${eco.currency()}.`);
+    if (!rows.length) return kit.reply(sock, msg, `ꕥ No hay usuarios con más de 1,000 ${eco.currency()}.`);
     const page = parseInt(args[0], 10) || 1;
     const size = 10;
     const pages = Math.ceil(rows.length / size);
