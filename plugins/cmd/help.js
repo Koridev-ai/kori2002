@@ -2,6 +2,8 @@
 
 const fs = require("fs");
 const path = require("path");
+const botconf = require("../../libs/botconf");
+const botmedia = require("../../libs/botmedia");
 
 const MENU_BANNER = path.join(__dirname, "..", "..", "media", "menu.jpg");
 const FALLBACK_NAME = "Rem";
@@ -104,8 +106,10 @@ const handler = async (msg, ctx = {}) => {
     members = String(meta?.participants?.length ?? members);
   }
 
+  const botId = ctx.botId || botconf.number(sock.user?.id);
+  const settings = botconf.get(botId);
   const menuText = buildMenu({
-    botName: sock.user?.name || FALLBACK_NAME,
+    botName: settings.namebot || settings.botname || sock.user?.name || FALLBACK_NAME,
     prefix,
     isGroup,
     groupName,
@@ -114,7 +118,7 @@ const handler = async (msg, ctx = {}) => {
   const mentions = sender ? [sender] : [];
 
   try {
-    await sock.sendMessage(chatId, { image: fs.readFileSync(MENU_BANNER), caption: menuText, mentions }, { quoted: msg });
+    await sock.sendMessage(chatId, { image: botmedia.bannerBuffer(botId) || fs.readFileSync(MENU_BANNER), caption: menuText, mentions }, { quoted: msg });
   } catch (error) {
     console.error("❌ No se pudo enviar el menú con imagen:", error.message);
     await sock.sendMessage(chatId, { text: menuText, mentions }, { quoted: msg });
