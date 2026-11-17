@@ -13,9 +13,9 @@ module.exports = eco.define({
     let target = me;
     let label = "";
     if (t) {
-      target = eco.peek(t.jid);
+      target = eco.peekAny(t.ids);
       if (!target) return kit.reply(sock, msg, "「✎」 El usuario mencionado no está registrado en el bot.");
-      label = pdb.peek(t.jid)?.name || `@${t.number}`;
+      label = pdb.peekAny(t.ids)?.name || `@${t.number}`;
     }
     const mentions = t ? [t.jid] : [];
     const cmd = command.toLowerCase();
