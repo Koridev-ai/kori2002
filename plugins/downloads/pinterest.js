@@ -1,5 +1,6 @@
 "use strict";
 
+const axios = require("axios");
 const kit = require("../../libs/pluginkit");
 const dl = require("../../libs/dlkit");
 
@@ -152,6 +153,118 @@ async function searchDelirius(query) {
   return data.data.filter((pin) => typeof pin?.image === "string" && pin.image);
 }
 
+const BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
+const SESSION_TTL_MS = 30 * 60 * 1000;
+let session = null;
+let sessionAt = 0;
+
+async function getSession(force = false) {
+  if (!force && session && Date.now() - sessionAt < SESSION_TTL_MS) return session;
+  const res = await axios.get("https://www.pinterest.com/", {
+    headers: { "User-Agent": BROWSER_UA, Accept: "text/html,application/xhtml+xml", "Accept-Language": "en-US,en;q=0.9" },
+    timeout: 15000,
+    responseType: "text",
+    transformResponse: (data) => data,
+    validateStatus: () => true
+  });
+  const cookies = (res.headers["set-cookie"] || []).map((c) => c.split(";")[0]);
+  const csrf = ((cookies.find((c) => c.startsWith("csrftoken=")) || "").split("=")[1]) || "";
+  const version = (String(res.data || "").match(/"appVersion"\s*:\s*"([^"]+)"/) || [])[1] || "";
+  session = { cookie: cookies.join("; "), csrf, version };
+  sessionAt = Date.now();
+  return session;
+}
+
+async function requestPinterest(query, s) {
+  const source = `/search/pins/?q=${encodeURIComponent(query)}`;
+  const headers = {
+    "User-Agent": BROWSER_UA,
+    Accept: "application/json, text/javascript, */*, q=0.01",
+    "Accept-Language": "en-US,en;q=0.9",
+    "X-Requested-With": "XMLHttpRequest",
+    "X-Pinterest-PWS-Handler": "www/index.js",
+    Referer: `https://www.pinterest.com${source}`
+  };
+  if (s.version) headers["X-APP-VERSION"] = s.version;
+  if (s.csrf) headers["X-CSRFToken"] = s.csrf;
+  if (s.cookie) headers.Cookie = s.cookie;
+  const res = await axios.get("https://www.pinterest.com/resource/BaseSearchResource/get/", {
+    params: { source_url: source, data: JSON.stringify({ options: { query, scope: "pins", page_size: 50, gated: false }, context: {} }) },
+    headers,
+    timeout: 15000
+  });
+  return res.data;
+}
+
+async function searchPinterestDirect(query) {
+  let data;
+  try {
+    data = await requestPinterest(query, await getSession());
+  } catch (e) {
+    if (![401, 403].includes(e?.response?.status)) throw e;
+    data = await requestPinterest(query, await getSession(true));
+  }
+  const results = data?.resource_response?.data?.results;
+  if (!Array.isArray(results)) return [];
+  return results
+    .filter((pin) => pin?.type === "pin" && (pin.images?.orig?.url || pin.images?.["736x"]?.url))
+    .map((pin) => ({
+      ...pin,
+      image: pin.images?.orig?.url || pin.images?.["736x"]?.url,
+      title: pin.title || pin.grid_title || "",
+      description: pin.description || pin.auto_alt_text || "",
+      author: pin.pinner?.full_name || pin.pinner?.username || pin.native_creator?.full_name || ""
+    }));
+}
+
+function decodeEntities(text) {
+  return String(text).replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+}
+
+async function searchBing(query) {
+  const url = `https://www.bing.com/images/async?q=${encodeURIComponent(`site:pinterest.com ${query}`)}&first=0&count=50&mmasync=1`;
+  const { status, body } = await dl.getText(url, { headers: { "Accept-Language": "en-US,en;q=0.9" }, timeout: 20000 });
+  if (status !== 200) throw new Error(`Bing respondió HTTP ${status}`);
+  const pins = [];
+  for (const match of body.matchAll(/\sm="(\{.*?\})"/g)) {
+    try {
+      const item = JSON.parse(decodeEntities(match[1]));
+      if (typeof item.murl === "string" && /^https?:\/\//i.test(item.murl)) {
+        pins.push({ image: item.murl, thumbnail: item.turl, title: item.t || "", description: item.desc || item.t || "", author: "" });
+      }
+    } catch {}
+  }
+  return pins;
+}
+
+async function searchFare(query) {
+  const res = await dl.getJson(`${dl.api("fare").url}/search/pin`, { params: { q: query, limit: 20 } });
+  if (!res?.status || !Array.isArray(res.results)) return [];
+  return res.results
+    .filter((d) => d?.descarga && !/\.mp4(?:$|\?)/i.test(d.descarga) && String(d.tipo || "").toLowerCase() !== "video")
+    .map((d) => ({ image: d.descarga, title: d.titulo || "", description: d.titulo || "", author: d.autor || "" }));
+}
+
+async function searchPins(query) {
+  const sources = [
+    ["pinterest", searchPinterestDirect],
+    ["bing", searchBing],
+    ["delirius", searchDelirius],
+    ["fare", searchFare]
+  ];
+  const errors = [];
+  for (const [name, run] of sources) {
+    try {
+      const pins = await run(query);
+      if (pins.length) return pins;
+    } catch (e) {
+      errors.push(`${name}: ${e?.response?.status || e?.message || e}`);
+    }
+  }
+  if (errors.length === sources.length) throw new Error(`Ninguna fuente respondió (${errors.join(" | ")})`);
+  return [];
+}
+
 module.exports = dl.define({
   commands: ["pinterest", "pin"],
   description: "Buscar y descarga imágenes y videos de Pinterest.",
@@ -166,7 +279,7 @@ module.exports = dl.define({
       else await sock.sendMessage(chatId, { image: { url: data.url }, caption }, { quoted: msg });
       return kit.react(sock, msg, "✔");
     }
-    const results = await searchDelirius(text);
+    const results = await searchPins(text);
     if (!results.length) return kit.reply(sock, msg, `《✧》 No se encontraron resultados para *${text}*.`);
     const used = getUsed(chatId);
     const available = results.filter((pin) => {
