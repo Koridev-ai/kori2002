@@ -112,6 +112,19 @@ function peek(jid) {
   return found ? normalize(found) : null;
 }
 
+function peekAny(ids) {
+  for (const id of [].concat(ids)) {
+    const found = peek(id);
+    if (found) return found;
+  }
+  return null;
+}
+
+function accountAny(ids) {
+  const list = [].concat(ids).filter(Boolean);
+  return peekAny(list) || account(list[0]);
+}
+
 function all() {
   return Object.entries(load()).map(([id, a]) => ({ id, ...normalize(a) }));
 }
@@ -235,6 +248,7 @@ function claimPlugin({ commands, description, name, label, gap, maxStreak, base,
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-module.exports = { sleep, rand, pick, loseMoney, fill, account, peek, all, currency, money, formatTime, remaining, setCooldown, parseAmount, define, claimPlugin, save, flush, key };
+module.exports = { sleep, rand, pick, loseMoney, fill, account, peek, peekAny, accountAny, all, currency, money, formatTime, remaining, setCooldown, parseAmount, define, claimPlugin, save, flush, key };
 
-                                                          
+
+  
