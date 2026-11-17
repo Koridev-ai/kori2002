@@ -60,7 +60,8 @@ function target(msg, g) {
   const t = pdb.mentionTarget(msg);
   if (!t) return null;
   const p = g.find(t.jid, t.raw);
-  return { p, jid: p?.id || t.raw || t.jid, raw: t.raw, number: lid.user(p?.id || t.raw || t.jid) };
+  const ids = [...new Set([t.jid, p?.phoneNumber, p?.jid, p?.id, t.raw].filter(Boolean))];
+  return { p, jid: p?.id || t.raw || t.jid, raw: t.raw, number: lid.user(p?.id || t.raw || t.jid), ids };
 }
 
 function define({ commands, description, admin = false, botAdmin = false, group = true, run }) {
