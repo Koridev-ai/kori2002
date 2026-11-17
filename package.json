@@ -18,7 +18,9 @@
   "dependencies": {
     "baileys": "npm:@neykoor/baileys@8.0.7-rc18",
     "@napi-rs/canvas": "^1.0.13",
+    "@vreden/youtube_scraper": "^1.2.9",
     "axios": "^0.24.0",
+    "btch-downloader": "^6.0.37",
     "chalk": "^4.1.2",
     "cheerio": "^1.0.0-rc.12",
     "figlet": "^1.8.0",
