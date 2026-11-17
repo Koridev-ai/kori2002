@@ -5,7 +5,7 @@ const yandere = require("../../libs/yandere");
 const kit = require("../../libs/pluginkit");
 const dl = require("../../libs/dlkit");
 
-const DEFAULT_COUNT = 5;
+const DEFAULT_COUNT = 1;
 const MAX_COUNT = 10;
 
 async function collectPosts(tag, count) {
@@ -42,7 +42,8 @@ module.exports = gacha.define({
       data: { url: post.url },
       caption: index === 0 ? `✿ Nombre » *${character.name}*\n❖ Serie » *${character.series}*\n✦ ID » \`${character.id}\`\n❏ Imágenes » *${posts.length}*` : ""
     }));
-    await dl.sendAlbum(sock, chatId, items, msg);
+    if (items.length === 1) await sock.sendMessage(chatId, { image: items[0].data, caption: items[0].caption }, { quoted: msg });
+    else await dl.sendAlbum(sock, chatId, items, msg);
     kit.react(sock, msg, "🌸");
   }
 });
