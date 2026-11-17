@@ -14,11 +14,11 @@ module.exports = eco.define({
     if (wait > 0) return kit.reply(sock, msg, `ꕥ Debes esperar *${eco.formatTime(wait)}* para usar *${usedPrefix + command}* de nuevo.`);
     const t = gk.target(msg, g);
     if (!t) return kit.reply(sock, msg, "❀ Debes mencionar a alguien para intentar robarle.");
-    if (eco.key(t.jid) === eco.key(jid)) return kit.reply(sock, msg, "ꕥ No puedes robarte a ti mismo.");
-    const target = eco.peek(t.jid);
+    if (t.ids.some((id) => eco.key(id) === eco.key(jid))) return kit.reply(sock, msg, "ꕥ No puedes robarte a ti mismo.");
+    const target = eco.peekAny(t.ids);
     if (!t || !t.p || !target) return kit.reply(sock, msg, "ꕥ El usuario no se encuentra en mi base de datos.");
-    const name = pdb.peek(t.jid)?.name || `@${t.number}`;
-    const lastSeen = gdb.peekUser(g.chatId, t.jid)?.last || 0;
+    const name = pdb.peekAny(t.ids)?.name || `@${t.number}`;
+    const lastSeen = t.ids.map((id) => gdb.peekUser(g.chatId, id)).find(Boolean)?.last || 0;
     if (Date.now() - lastSeen < 3600000) {
       return kit.reply(sock, msg, `ꕥ Solo puedes robarle *${eco.currency()}* a un usuario si estuvo más de 1 hora inactivo.`);
     }
