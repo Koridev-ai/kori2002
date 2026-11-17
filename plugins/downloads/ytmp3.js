@@ -12,6 +12,8 @@ module.exports = dl.define({
     await kit.react(sock, msg, "✧");
     const { url, info } = await yt.resolve(text);
     let title = info?.title || "audio";
+    const job = yt.fetchAudio(url, info?.title);
+    job.catch(() => {});
     if (info) {
       const views = Number(info.views || 0).toLocaleString("es-HN");
       const channel = info.author?.name || info.author || "Desconocido";
@@ -20,12 +22,18 @@ module.exports = dl.define({
       if (thumb) await sock.sendMessage(chatId, { image: { url: thumb }, caption }, { quoted: msg }).catch(() => kit.reply(sock, msg, caption));
       else await kit.reply(sock, msg, caption);
     }
-    const media = await yt.fetchMedia("audio", url);
+    const { media, audio } = await job;
     title = info?.title || media.meta?.title || title;
-    const buffer = await dl.getBuffer(media.url);
-    if (!buffer.length) throw new Error("No se pudo descargar el audio");
-    const audio = await dl.toPlayableAudio(buffer);
-    await sock.sendMessage(chatId, { audio: audio.buffer, fileName: `${dl.cleanName(title)}.${audio.ext}`, mimetype: audio.mimetype, ptt: false }, { quoted: msg });
+    const content = { audio: audio.buffer, fileName: `${dl.cleanName(title)}.${audio.ext}`, mimetype: audio.mimetype, ptt: false };
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await sock.sendMessage(chatId, content, { quoted: msg });
+        break;
+      } catch (e) {
+        if (!String(e?.message).includes("Media upload failed on all hosts") || attempt === 3) throw e;
+        await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
+      }
+    }
     return kit.react(sock, msg, "✔");
   }
 });
