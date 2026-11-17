@@ -113,6 +113,14 @@ function peek(jid) {
   return load()[key(jid)] || null;
 }
 
+function peekAny(ids) {
+  for (const id of [].concat(ids)) {
+    const found = peek(id);
+    if (found) return found;
+  }
+  return null;
+}
+
 function set(jid, field, value) {
   const user = get(jid);
   user[field] = value;
@@ -222,6 +230,7 @@ module.exports = {
   label,
   get,
   peek,
+  peekAny,
   set,
   all,
   save,
