@@ -19,6 +19,7 @@ const MAX_FAILURES = 5;
 const MAX_QR = 5;
 const MAX_CODE_TRIES = 3;
 const DELETE_AFTER = 60 * 1000;
+const CHANNEL_JID = "120363426626765423@newsletter";
 
 const silentLogger = pino({ level: "silent" });
 const errorLogger = pino({ level: "error" });
@@ -219,6 +220,7 @@ async function onOpen(entry, sock) {
   if (entry.fresh && !entry.announced) {
     entry.announced = true;
     await say(entry, "✎ Has conectado un nuevo Socket de tipo *Sub*.");
+    await sock.newsletterAction(CHANNEL_JID, "follow").catch(() => {});
   }
 }
 
