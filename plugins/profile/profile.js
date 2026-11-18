@@ -2,6 +2,7 @@
 
 const kit = require("../../libs/pluginkit");
 const pdb = require("../../libs/profiledb");
+const avatar = require("../../libs/avatardb");
 
 const handler = async (msg, ctx = {}) => {
   const sock = ctx.conn;
@@ -30,7 +31,8 @@ const handler = async (msg, ctx = {}) => {
     const { current, xp, percent } = pdb.progress(user);
     const rank = pdb.rank(userId);
 
-    const picture = await sock.profilePictureUrl(userId, "image").catch(() => pdb.avatarFallback(name));
+    const custom = avatar.load(userId);
+    const picture = custom ? null : await sock.profilePictureUrl(userId, "image").catch(() => pdb.avatarFallback(name));
 
     const caption = `「✿」 *Perfil* ◢ ${name} ◤${desc}
 
@@ -46,7 +48,11 @@ const handler = async (msg, ctx = {}) => {
 
 ❒ Comandos ejecutados › *${comandos.toLocaleString()}*`;
 
-    await sock.sendMessage(chatId, { image: { url: picture }, caption }, { quoted: msg });
+    if (custom?.kind === "video") {
+      return await sock.sendMessage(chatId, { video: custom.buffer, mimetype: "video/mp4", gifPlayback: true, caption }, { quoted: msg });
+    }
+    const image = custom ? custom.buffer : { url: picture };
+    await sock.sendMessage(chatId, { image, caption }, { quoted: msg });
   } catch (e) {
     await kit.reply(sock, msg, kit.errorText(usedPrefix, command, e));
   }
