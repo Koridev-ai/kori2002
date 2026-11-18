@@ -1,8 +1,12 @@
 "use strict";
 
+const fs = require("fs");
+const path = require("path");
 const kit = require("../../libs/pluginkit");
 const pdb = require("../../libs/profiledb");
 const avatar = require("../../libs/avatardb");
+
+const DEFAULT_PICTURE = path.resolve(__dirname, "..", "..", "media", "perfil.jpg");
 
 const handler = async (msg, ctx = {}) => {
   const sock = ctx.conn;
@@ -32,7 +36,7 @@ const handler = async (msg, ctx = {}) => {
     const rank = pdb.rank(userId);
 
     const custom = avatar.load(userId);
-    const picture = custom ? null : await sock.profilePictureUrl(userId, "image").catch(() => pdb.avatarFallback(name));
+    const picture = custom ? null : await sock.profilePictureUrl(userId, "image").catch(() => null);
 
     const caption = `「✿」 *Perfil* ◢ ${name} ◤${desc}
 
@@ -51,7 +55,11 @@ const handler = async (msg, ctx = {}) => {
     if (custom?.kind === "video") {
       return await sock.sendMessage(chatId, { video: custom.buffer, mimetype: "video/mp4", gifPlayback: true, caption }, { quoted: msg });
     }
-    const image = custom ? custom.buffer : { url: picture };
+    let image;
+    if (custom) image = custom.buffer;
+    else if (picture) image = { url: picture };
+    else if (fs.existsSync(DEFAULT_PICTURE)) image = fs.readFileSync(DEFAULT_PICTURE);
+    else image = { url: pdb.avatarFallback(name) };
     await sock.sendMessage(chatId, { image, caption }, { quoted: msg });
   } catch (e) {
     await kit.reply(sock, msg, kit.errorText(usedPrefix, command, e));
