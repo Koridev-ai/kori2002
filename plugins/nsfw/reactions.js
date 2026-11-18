@@ -32,8 +32,6 @@ const REACTIONS = {
   thighjob: { self: "está frotando entre los muslos", other: "le está haciendo una entre piernas a", purr: null, tag: "thigh_sex" },
   bondage: { self: "está atado y sin escapatoria...", other: "ató bien amarrado a", purr: null, tag: "bondage" },
   pegging: { self: "está recibiendo lo que no esperaba", other: "le está dando por detrás a", purr: null, tag: "pegging" },
-  futanari: { self: "tiene lo mejor de los dos mundos", other: "le demostró lo que tiene a", purr: null, tag: "futanari" },
-  yaoi: { self: "está disfrutando de un momento muy intenso", other: "se lo pasó genial con", purr: "yaoi", tag: "yaoi" },
   bukkake: { self: "terminó solo... de una forma muy especial", other: "invitó a sus amigos a acabar encima de", purr: null, tag: "bukkake" },
   orgy: { self: "está en una orgía", other: "organizó una orgía con", purr: "threesome_ffm", tag: "group_sex" },
   squirting: { self: "llegó al límite y se vino con todo", other: "la llevó al límite hasta que se vino con todo", purr: null, tag: "squirting" }
@@ -67,8 +65,6 @@ const ALIAS = {
   thighjob: ["thighjob"],
   bondage: ["bondage"],
   pegging: ["pegging"],
-  futanari: ["futanari", "futa"],
-  yaoi: ["yaoi"],
   bukkake: ["bukkake"],
   orgy: ["orgy", "orgia"],
   squirting: ["squirt", "squirting"]
@@ -127,7 +123,7 @@ const handler = async (msg, ctx = {}) => {
   }
 };
 
-handler.command = ["anal", "violar", "cum", "undress", "encuerar", "fuck", "coger", "spank", "nalgada", "lickpussy", "fap", "paja", "grope", "sixnine", "69", "suckboobs", "grabboobs", "blowjob", "mamada", "bj", "boobjob", "yuri", "tijeras", "footjob", "cummouth", "cumshot", "handjob", "lickass", "lickdick", "fingering", "creampie", "facesitting", "deepthroat", "thighjob", "bondage", "pegging", "futanari", "futa", "yaoi", "bukkake", "orgy", "orgia", "squirt", "squirting"];
+handler.command = ["anal", "violar", "cum", "undress", "encuerar", "fuck", "coger", "spank", "nalgada", "lickpussy", "fap", "paja", "grope", "sixnine", "69", "suckboobs", "grabboobs", "blowjob", "mamada", "bj", "boobjob", "yuri", "tijeras", "footjob", "cummouth", "cumshot", "handjob", "lickass", "lickdick", "fingering", "creampie", "facesitting", "deepthroat", "thighjob", "bondage", "pegging", "bukkake", "orgy", "orgia", "squirt", "squirting"];
 handler.description = "Reacciones NSFW entre usuarios.";
 handler.category = "NSFW";
 module.exports = handler;
