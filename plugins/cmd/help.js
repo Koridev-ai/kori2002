@@ -9,7 +9,7 @@ const MENU_BANNER = path.join(__dirname, "..", "..", "media", "menu.jpg");
 const FALLBACK_NAME = "Rem";
 const DEFAULT_CHANNEL = "https://whatsapp.com/channel/0029Vb7NOUpF1YlXOQHW6d3O";
 const DEFAULT_CATEGORY = "Otros";
-const CATEGORY_ORDER = ["General", "Perfil", "Grupo", "Economía", "Descargas", "Stickers", "Utilidades", "NSFW", "Sub-Bot", "Owner"];
+const CATEGORY_ORDER = ["General", "Perfil", "Grupo", "Economía", "Descargas", "Stickers", "Utilidades", "Reacciones", "NSFW", "Sub-Bot", "Owner"];
 
 let cachedCommands = null;
 
