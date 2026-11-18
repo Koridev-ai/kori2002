@@ -7,6 +7,7 @@ const botmedia = require("../../libs/botmedia");
 
 const MENU_BANNER = path.join(__dirname, "..", "..", "media", "menu.jpg");
 const FALLBACK_NAME = "Rem";
+const DEFAULT_CHANNEL = "https://whatsapp.com/channel/0029Vb7NOUpF1YlXOQHW6d3O";
 const DEFAULT_CATEGORY = "Otros";
 const CATEGORY_ORDER = ["General", "Perfil", "Grupo", "Economía", "Descargas", "Stickers", "Utilidades", "NSFW", "Sub-Bot", "Owner"];
 
@@ -71,7 +72,7 @@ function renderCategory(name, commands, prefix) {
   return `${section}\n`;
 }
 
-function buildMenu({ botName, prefix, isGroup, groupName, members }) {
+function buildMenu({ botName, prefix, isGroup, groupName, members, channel }) {
   let header = `𝐇𝐨λ𝐚! 𝐒𝐨𝐲 ${botName}\n`;
   header += "ᴀǫᴜɪ ᴛɪᴇɴᴇs ʟᴀ ʟɪsᴛᴀ ᴅᴇ ᴄᴏᴍᴀɴᴅᴏs\n";
   header += "╭┈ ↷\n";
@@ -79,6 +80,10 @@ function buildMenu({ botName, prefix, isGroup, groupName, members }) {
   if (isGroup) {
     header += `│ ✐ ꒷ꕤ💎 𝐆𝐫𝐮𝐩𝐨: ${groupName}\n`;
     header += `│ ✐ ꒷ꕤ💎 𝐔𝐬𝐮𝐚𝐫𝐢𝐨𝐬: ${members}\n`;
+  }
+  if (channel) {
+    header += "│ ✐ ꒷ꕤ💎 𝐂𝐚𝐧𝐚λ 𝐎𝐟𝐢𝐜𝐢𝐚λ ෴\n";
+    header += `│ ${channel}\n`;
   }
   header += "╰─────────────────\n\n";
 
@@ -113,7 +118,8 @@ const handler = async (msg, ctx = {}) => {
     prefix,
     isGroup,
     groupName,
-    members
+    members,
+    channel: settings.channel || DEFAULT_CHANNEL
   });
   const mentions = sender ? [sender] : [];
 
