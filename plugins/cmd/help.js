@@ -114,7 +114,7 @@ const handler = async (msg, ctx = {}) => {
   const botId = ctx.botId || botconf.number(sock.user?.id);
   const settings = botconf.get(botId);
   const menuText = buildMenu({
-    botName: settings.namebot || settings.botname || sock.user?.name || FALLBACK_NAME,
+    botName: settings.namebot || settings.botname || FALLBACK_NAME,
     prefix,
     isGroup,
     groupName,
