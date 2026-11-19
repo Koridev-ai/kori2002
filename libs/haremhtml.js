@@ -123,7 +123,7 @@ const CLIENT = `
       (c.fav ? '<span class="fav">\\u2605 Favorito</span>' : '') +
       '<div class="info"><div><b>' + esc(c.vf) + '</b><span>Valor</span></div><div><b>#' + esc(c.k || '-') + '</b><span>Puesto</span></div>' +
       '<div><b>' + esc(c.g || '-') + '</b><span>G\\u00E9nero</span></div><div><b>' + esc(c.d || '-') + '</b><span>Reclamado</span></div></div>' +
-      '<div class="cmds"><b>' + esc(D.prefix) + 'charinfo ' + esc(c.i) + '</b><br><b>' + esc(D.prefix) + 'setfav ' + esc(c.i) + '</b><br><b>' + esc(D.prefix) + 'sell 5000 ' + esc(c.i) + '</b></div></div>';
+      '</div>';
   }
   function render(keep){
     var c = S.d ? D.items.filter(function(x){ return x.i === S.d; })[0] : null;
