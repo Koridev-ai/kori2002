@@ -63,9 +63,9 @@ function drawCover(ctx, img, x, y, w, h, r) {
   ctx.restore();
 }
 
-async function featuredImage(character) {
+async function featuredImage(character, fresh) {
   if (!character) return null;
-  if (imageCache.has(character.id)) return imageCache.get(character.id);
+  if (!fresh && imageCache.has(character.id)) return imageCache.get(character.id);
   let img = null;
   try {
     const post = await yandere.getRandomPost(character.tag);
@@ -276,6 +276,19 @@ function renderCard(o) {
   return canvas.toBuffer("image/png");
 }
 
+function buildButtons({ usedPrefix, command, page, pages, targetId }) {
+  const base = `${usedPrefix}${command}`;
+  const make = (label, target, extra) => ({
+    name: "quick_reply",
+    buttonParamsJson: JSON.stringify({ display_text: label, id: `${base} ${target} u:${targetId}${extra || ""}` })
+  });
+  const buttons = [];
+  if (page > 1) buttons.push(make("Anterior", page - 1));
+  if (page < pages) buttons.push(make("Siguiente", page + 1));
+  if (page === 1) buttons.push(make("Otra foto", 1, " nuevo"));
+  return buttons;
+}
+
 function textHarem({ name, owned, primaryId, page, totalPages, usedPrefix, command }) {
   const start = (page - 1) * TEXT_PER_PAGE;
   const end = Math.min(start + TEXT_PER_PAGE, owned.length);
@@ -293,9 +306,12 @@ module.exports = gacha.define({
   commands: ["harem", "waifus", "claims"],
   description: "Muestra los personajes reclamados de un usuario.",
   run: async ({ sock, msg, chatId, id, args, usedPrefix, command }) => {
-    const t = gacha.target(msg);
-    const targetId = t ? t.id : id;
-    const targetJid = t ? t.jid : gacha.mentionJid(id);
+    const userArg = args.find((a) => /^u:[0-9A-Za-z_.-]{3,40}$/.test(a));
+    const forcedId = userArg ? userArg.slice(2) : null;
+    const fresh = args.includes("nuevo");
+    const t = forcedId ? null : gacha.target(msg);
+    const targetId = forcedId || (t ? t.id : id);
+    const targetJid = t ? t.jid : gacha.mentionJid(targetId);
     const name = gacha.displayName(targetId);
 
     const owned = gacha.getUserCharacters(targetId);
@@ -315,7 +331,7 @@ module.exports = gacha.define({
     try {
       let featured = null;
       if (page === 1) featured = owned.find((c) => c.id === primaryId) || owned[0] || null;
-      const featuredImg = featured ? await featuredImage(featured) : null;
+      const featuredImg = featured ? await featuredImage(featured, fresh) : null;
 
       const start = (page - 1) * PER_PAGE;
       const buffer = renderCard({
@@ -335,6 +351,16 @@ module.exports = gacha.define({
 
       let caption = `✿ Harem de *${name}*\n⌦ Página *${page}* de *${pages}*`;
       if (page < pages) caption += `\n> Usa *${usedPrefix}${command} ${page + 1}* para ver la siguiente página.`;
+      const buttons = buildButtons({ usedPrefix, command, page, pages, targetId });
+      try {
+        return await sock.sendMessage(
+          chatId,
+          { image: buffer, caption, footer: "Kori", mentions: [targetJid], interactiveButtons: buttons },
+          { quoted: msg }
+        );
+      } catch (buttonError) {
+        console.error("[harem] fallaron los botones, se envía sin ellos:", buttonError);
+      }
       return sock.sendMessage(chatId, { image: buffer, caption, mentions: [targetJid] }, { quoted: msg });
     } catch (error) {
       console.error("[harem] fallo la imagen, se usa texto:", error);
