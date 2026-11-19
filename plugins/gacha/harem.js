@@ -169,7 +169,7 @@ async function sendRichHarem({ sock, msg, chatId, name, owned, primaryId }) {
   });
 
   const trustedSources = IMAGE_MODE === "remote" ? REMOTE_HOSTS : [];
-  await sendRichHtml(sock, chatId, `Harem de ${name}`, "Harem", html, { trustedSources, quoted: msg });
+  await sendRichHtml(sock, chatId, `Harem de ${name}`, html, { trustedSources, quoted: msg });
 }
 
 function roundRect(ctx, x, y, w, h, r) {
@@ -532,4 +532,4 @@ module.exports = gacha.define({
     return sock.sendMessage(chatId, { text, mentions: [targetJid] }, { quoted: msg });
   }
 });
-  
+      
