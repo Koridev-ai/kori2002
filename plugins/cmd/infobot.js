@@ -30,7 +30,7 @@ const handler = async (msg, ctx = {}) => {
   try {
     const botId = ctx.botId || botconf.number(sock.user?.id);
     const settings = botconf.get(botId);
-    const botName = settings.namebot || settings.botname || sock.user?.name || "Bot";
+    const botName = settings.namebot || settings.botname || "Rem";
     const globalOwner = String((global.owner || [])[0]?.[0] || "").replace(/[^0-9]/g, "");
     const ownerId = ctx.isSub ? botconf.number(settings.owner) || botId : globalOwner;
     const prefixText = settings.noprefix ? "sin prefijo" : botconf.prefixes(botId).map((p) => `\`${p}\``).join(" ");
