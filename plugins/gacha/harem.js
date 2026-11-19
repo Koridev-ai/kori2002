@@ -1,53 +1,72 @@
 "use strict";
 
 const axios = require("axios");
+const { createCanvas, loadImage } = require("@napi-rs/canvas");
 const gacha = require("../../libs/gachakit");
 const kit = require("../../libs/pluginkit");
 const eco = require("../../libs/ecokit");
 const yandere = require("../../libs/yandere");
-const { sendRichHtml } = require("../../libs/richhtml");
 
 const PER_PAGE = 8;
 const TEXT_PER_PAGE = 20;
-const MAX_DOWNLOAD_BYTES = 4 * 1024 * 1024;
-const MAX_EMBED_BYTES = 450 * 1024;
+const MAX_DOWNLOAD_BYTES = 6 * 1024 * 1024;
 const IMAGE_TIMEOUT_MS = 9000;
 const IMAGE_CACHE_LIMIT = 40;
+const FONT = "sans-serif";
+
+const W = 900;
+const PAD = 36;
+const ROW_H = 84;
 
 const imageCache = new Map();
 
-function esc(value) {
-  return String(value === undefined || value === null ? "" : value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
 }
 
-function mimeOf(buf) {
-  if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8) return "image/jpeg";
-  if (buf.length > 4 && buf[0] === 0x89 && buf[1] === 0x50) return "image/png";
-  if (buf.length > 12 && buf.toString("ascii", 8, 12) === "WEBP") return "image/webp";
-  if (buf.length > 3 && buf.toString("ascii", 0, 3) === "GIF") return "image/gif";
-  return "image/jpeg";
+function fit(ctx, text, maxWidth) {
+  let t = String(text === undefined || text === null ? "" : text);
+  if (ctx.measureText(t).width <= maxWidth) return t;
+  while (t.length > 1 && ctx.measureText(t + "...").width > maxWidth) t = t.slice(0, -1);
+  return t + "...";
 }
 
-async function shrink(buf) {
-  if (buf.length <= MAX_EMBED_BYTES) return buf;
-  try {
-    const { Jimp } = require("jimp");
-    const img = await Jimp.read(buf);
-    if (img.bitmap.width > 360) img.resize({ w: 360 });
-    return await img.getBuffer("image/jpeg", { quality: 72 });
-  } catch {
-    return null;
+function drawStar(ctx, cx, cy, r, color) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const radius = i % 2 === 0 ? r : r * 0.45;
+    const angle = (Math.PI / 5) * i - Math.PI / 2;
+    const x = cx + Math.cos(angle) * radius;
+    const y = cy + Math.sin(angle) * radius;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
   }
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+}
+
+function drawCover(ctx, img, x, y, w, h, r) {
+  ctx.save();
+  roundRect(ctx, x, y, w, h, r);
+  ctx.clip();
+  const scale = Math.max(w / img.width, h / img.height);
+  const dw = img.width * scale;
+  const dh = img.height * scale;
+  ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+  ctx.restore();
 }
 
 async function featuredImage(character) {
   if (!character) return null;
   if (imageCache.has(character.id)) return imageCache.get(character.id);
-  let uri = null;
+  let img = null;
   try {
     const post = await yandere.getRandomPost(character.tag);
     if (post && post.url) {
@@ -57,130 +76,204 @@ async function featuredImage(character) {
         maxContentLength: MAX_DOWNLOAD_BYTES,
         headers: { "User-Agent": "Mozilla/5.0" }
       });
-      let buf = Buffer.from(res.data);
-      buf = await shrink(buf);
-      if (buf && buf.length <= MAX_EMBED_BYTES * 2) uri = `data:${mimeOf(buf)};base64,${buf.toString("base64")}`;
+      img = await loadImage(Buffer.from(res.data));
     }
   } catch {
-    uri = null;
+    img = null;
   }
-  if (uri) {
+  if (img) {
     if (imageCache.size >= IMAGE_CACHE_LIMIT) imageCache.delete(imageCache.keys().next().value);
-    imageCache.set(character.id, uri);
+    imageCache.set(character.id, img);
   }
-  return uri;
+  return img;
 }
 
-function initialOf(name) {
-  const ch = String(name || "?").trim().charAt(0).toUpperCase();
-  return esc(ch || "?");
-}
+function renderCard(o) {
+  const featuredH = o.featured ? 300 : 0;
+  const rowsH = o.pageItems.length * ROW_H;
+  const H = PAD + 150 + 20 + 110 + 20 + 76 + (o.featured ? featuredH + 20 : 0) + rowsH + 70 + PAD;
 
-function buildHtml(o) {
-  const pct = o.catalog > 0 ? Math.min(100, Math.max(2, Math.round((o.owned / o.catalog) * 100))) : 2;
+  const canvas = createCanvas(W, H);
+  const ctx = canvas.getContext("2d");
+  ctx.textBaseline = "alphabetic";
 
-  let featured = "";
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, "#dbeafe");
+  bg.addColorStop(1, "#bae6fd");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  const cx = PAD;
+  const cw = W - PAD * 2;
+  let y = PAD;
+
+  const banner = ctx.createLinearGradient(cx, y, cx + cw, y + 150);
+  banner.addColorStop(0, "#0ea5e9");
+  banner.addColorStop(0.6, "#38bdf8");
+  banner.addColorStop(1, "#a5f3fc");
+  ctx.fillStyle = banner;
+  roundRect(ctx, cx, y, cw, 150, 30);
+  ctx.fill();
+
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.font = `bold 22px ${FONT}`;
+  ctx.fillText("KORI  |  HAREM", cx + 32, y + 46);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = `bold 46px ${FONT}`;
+  ctx.fillText(fit(ctx, o.name, cw - 64), cx + 32, y + 98);
+  ctx.font = `24px ${FONT}`;
+  ctx.fillStyle = "rgba(255,255,255,0.95)";
+  ctx.fillText("Colección de personajes reclamados", cx + 32, y + 132);
+  y += 150 + 20;
+
+  const tiles = [
+    { n: String(o.owned), l: "Personajes" },
+    { n: String(o.catalog), l: "En el catálogo" },
+    { n: eco.money(o.totalValue), l: "Valor total" }
+  ];
+  const gap = 16;
+  const tw = (cw - gap * 2) / 3;
+  tiles.forEach((tile, i) => {
+    const tx = cx + i * (tw + gap);
+    ctx.fillStyle = "#ffffff";
+    roundRect(ctx, tx, y, tw, 110, 22);
+    ctx.fill();
+    ctx.strokeStyle = "#bae6fd";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#0369a1";
+    ctx.font = `bold 34px ${FONT}`;
+    ctx.fillText(fit(ctx, tile.n, tw - 24), tx + tw / 2, y + 56);
+    ctx.fillStyle = "#64748b";
+    ctx.font = `22px ${FONT}`;
+    ctx.fillText(tile.l, tx + tw / 2, y + 90);
+    ctx.textAlign = "left";
+  });
+  y += 110 + 20;
+
+  const pct = o.catalog > 0 ? Math.min(1, Math.max(0.02, o.owned / o.catalog)) : 0.02;
+  ctx.fillStyle = "#e2e8f0";
+  roundRect(ctx, cx, y, cw, 18, 9);
+  ctx.fill();
+  const barGrad = ctx.createLinearGradient(cx, 0, cx + cw, 0);
+  barGrad.addColorStop(0, "#38bdf8");
+  barGrad.addColorStop(1, "#0ea5e9");
+  ctx.fillStyle = barGrad;
+  roundRect(ctx, cx, y, Math.max(18, cw * pct), 18, 9);
+  ctx.fill();
+  ctx.fillStyle = "#475569";
+  ctx.font = `22px ${FONT}`;
+  ctx.fillText(`${o.owned} de ${o.catalog} personajes del catálogo`, cx + 4, y + 50);
+  y += 76;
+
   if (o.featured) {
     const f = o.featured;
-    const imgHtml = o.featuredImage
-      ? `<div class="fimg"><img src="${o.featuredImage}" alt=""></div>`
-      : `<div class="fimg ph">✦</div>`;
-    const star = f.id === o.primaryId ? `<span class="chip fav">★ Favorito</span>` : "";
-    featured = `
-    <div class="feature">
-      ${imgHtml}
-      <div class="finfo">
-        <div class="fkicker">Destacado</div>
-        <div class="fname">${esc(f.name)}</div>
-        <div class="fsub">${esc(f.series)}</div>
-        <div class="fid">ID ${esc(f.id)}</div>
-        <div class="tags">${star}</div>
-        <div class="fvalue">${esc(eco.money(f.value))}</div>
-      </div>
-    </div>`;
+    ctx.fillStyle = "#ffffff";
+    roundRect(ctx, cx, y, cw, featuredH, 26);
+    ctx.fill();
+    ctx.strokeStyle = "#bae6fd";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    const ix = cx + 20;
+    const iy = y + 20;
+    const iw = 190;
+    const ih = featuredH - 40;
+    if (o.featuredImage) {
+      drawCover(ctx, o.featuredImage, ix, iy, iw, ih, 18);
+    } else {
+      ctx.fillStyle = "#e0f2fe";
+      roundRect(ctx, ix, iy, iw, ih, 18);
+      ctx.fill();
+      drawStar(ctx, ix + iw / 2, iy + ih / 2, 34, "#7dd3fc");
+    }
+
+    const tx = ix + iw + 28;
+    const tmax = cx + cw - 24 - tx;
+    ctx.fillStyle = "#0ea5e9";
+    ctx.font = `bold 20px ${FONT}`;
+    ctx.fillText("DESTACADO", tx, iy + 28);
+    ctx.fillStyle = "#0f172a";
+    ctx.font = `bold 40px ${FONT}`;
+    ctx.fillText(fit(ctx, f.name, tmax), tx, iy + 84);
+    ctx.fillStyle = "#475569";
+    ctx.font = `26px ${FONT}`;
+    ctx.fillText(fit(ctx, f.series, tmax), tx, iy + 128);
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = `22px ${FONT}`;
+    ctx.fillText(fit(ctx, `ID ${f.id}`, tmax), tx, iy + 162);
+    ctx.fillStyle = "#0369a1";
+    ctx.font = `bold 34px ${FONT}`;
+    ctx.fillText(fit(ctx, eco.money(f.value), tmax), tx, iy + 222);
+
+    if (f.id === o.primaryId) {
+      ctx.fillStyle = "#fef3c7";
+      roundRect(ctx, tx, iy + 238, 150, 34, 17);
+      ctx.fill();
+      drawStar(ctx, tx + 22, iy + 255, 11, "#d97706");
+      ctx.fillStyle = "#92400e";
+      ctx.font = `bold 20px ${FONT}`;
+      ctx.fillText("Favorito", tx + 42, iy + 262);
+    }
+    y += featuredH + 20;
   }
 
-  let rows = "";
   let n = (o.page - 1) * PER_PAGE;
   for (const c of o.pageItems) {
     n++;
-    const mark = c.id === o.primaryId ? "★ " : "";
-    rows += `
-    <div class="row">
-      <div class="rank">${n}</div>
-      <div class="rmeta">
-        <div class="rname">${mark}${esc(c.name)}</div>
-        <div class="rser">${esc(c.series)}</div>
-      </div>
-      <div class="rright">
-        <div class="rval">${esc(eco.money(c.value))}</div>
-      </div>
-    </div>`;
+    ctx.fillStyle = "#ffffff";
+    roundRect(ctx, cx, y, cw, ROW_H - 10, 20);
+    ctx.fill();
+    ctx.strokeStyle = "#e0f2fe";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    const rcy = y + (ROW_H - 10) / 2;
+    ctx.fillStyle = "#e0f2fe";
+    ctx.beginPath();
+    ctx.arc(cx + 44, rcy, 24, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#0369a1";
+    ctx.font = `bold 22px ${FONT}`;
+    ctx.textAlign = "center";
+    ctx.fillText(String(n), cx + 44, rcy + 8);
+    ctx.textAlign = "left";
+
+    const nameX = cx + 86;
+    const valueText = eco.money(c.value);
+    ctx.font = `bold 24px ${FONT}`;
+    const vw = ctx.measureText(valueText).width;
+    const nameMax = cw - 86 - vw - 50;
+
+    let nx = nameX;
+    if (c.id === o.primaryId) {
+      drawStar(ctx, nameX + 11, rcy - 10, 11, "#d97706");
+      nx += 30;
+    }
+    ctx.fillStyle = "#0f172a";
+    ctx.font = `bold 27px ${FONT}`;
+    ctx.fillText(fit(ctx, c.name, nameMax - (nx - nameX)), nx, rcy - 2);
+    ctx.fillStyle = "#64748b";
+    ctx.font = `21px ${FONT}`;
+    ctx.fillText(fit(ctx, c.series, nameMax), nameX, rcy + 24);
+
+    ctx.fillStyle = "#0369a1";
+    ctx.font = `bold 24px ${FONT}`;
+    ctx.textAlign = "right";
+    ctx.fillText(valueText, cx + cw - 24, rcy + 8);
+    ctx.textAlign = "left";
+    y += ROW_H;
   }
 
-  return `<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:#dbeafe;color:#0f172a;padding:14px}
-.wrap{max-width:520px;margin:0 auto;background:linear-gradient(180deg,#f8fbff,#e0f2fe);border:1px solid #bae6fd;border-radius:26px;padding:16px;box-shadow:0 8px 28px rgba(14,116,144,.18)}
-.banner{background:linear-gradient(120deg,#0ea5e9,#38bdf8 55%,#a5f3fc);border-radius:20px;padding:18px;color:#fff}
-.bkick{font-size:12px;letter-spacing:3px;text-transform:uppercase;opacity:.9}
-.bname{font-size:26px;font-weight:800;margin-top:4px;word-break:break-word}
-.bsub{font-size:13px;margin-top:2px;opacity:.95}
-.tiles{display:flex;gap:10px;margin:14px 0}
-.tile{flex:1;background:#fff;border:1px solid #bae6fd;border-radius:16px;padding:12px;text-align:center}
-.tile .n{font-size:20px;font-weight:800;color:#0369a1}
-.tile .l{font-size:12px;color:#64748b;margin-top:2px}
-.seg{display:flex;height:12px;border-radius:999px;overflow:hidden;background:#e2e8f0}
-.seg i{display:block;height:100%;background:linear-gradient(90deg,#38bdf8,#0ea5e9);border-radius:999px}
-.prog{font-size:13px;color:#475569;margin:8px 2px 16px}
-.chip{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:800}
-.chip.fav{background:#fef3c7;color:#92400e}
-.feature{display:flex;gap:14px;background:#fff;border:1px solid #bae6fd;border-radius:20px;padding:12px;margin-bottom:16px}
-.fimg{width:130px;height:180px;border-radius:14px;overflow:hidden;background:#e0f2fe;flex-shrink:0;display:flex;align-items:center;justify-content:center}
-.fimg img{width:100%;height:100%;object-fit:cover}
-.ph{color:#38bdf8;font-size:28px}
-.finfo{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center}
-.fkicker{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#0ea5e9;font-weight:800}
-.fname{font-size:21px;font-weight:800;margin-top:4px;line-height:1.15;word-break:break-word}
-.fsub{font-size:13px;color:#475569;margin-top:4px}
-.fid{font-size:12px;color:#94a3b8;margin-top:2px}
-.tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
-.fvalue{font-size:17px;font-weight:800;color:#0369a1;margin-top:10px}
-.row{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #e0f2fe;border-radius:14px;padding:10px 12px;margin-bottom:8px}
-.rank{width:30px;height:30px;border-radius:50%;background:#e0f2fe;color:#0369a1;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.rmeta{flex:1;min-width:0}
-.rname{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rser{font-size:12px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rright{text-align:right;flex-shrink:0}
-.rval{font-size:13px;font-weight:800;color:#0369a1}
-.foot{text-align:center;font-size:12px;color:#64748b;margin-top:12px;line-height:1.6}
-</style>
-</head>
-<body>
-<div class="wrap">
-  <div class="banner">
-    <div class="bkick">Kori · Harem</div>
-    <div class="bname">${esc(o.name)}</div>
-    <div class="bsub">Colección de personajes reclamados</div>
-  </div>
-  <div class="tiles">
-    <div class="tile"><div class="n">${o.owned}</div><div class="l">Personajes</div></div>
-    <div class="tile"><div class="n">${o.catalog}</div><div class="l">En el catálogo</div></div>
-    <div class="tile"><div class="n">${esc(eco.money(o.totalValue))}</div><div class="l">Valor total</div></div>
-  </div>
-  <div class="seg"><i style="width:${pct}%"></i></div>
-  <div class="prog">${o.owned} de ${o.catalog} personajes del catálogo</div>
-  ${featured}
-  ${rows}
-  <div class="foot">Página ${o.page} de ${o.pages}<br>${esc(o.prefix)}${esc(o.command)} &lt;página&gt;</div>
-</div>
-</body>
-</html>`;
+  ctx.fillStyle = "#475569";
+  ctx.font = `22px ${FONT}`;
+  ctx.textAlign = "center";
+  ctx.fillText(`Página ${o.page} de ${o.pages}`, W / 2, y + 34);
+  ctx.fillText(`${o.prefix}${o.command} <página>`, W / 2, y + 62);
+  ctx.textAlign = "left";
+
+  return canvas.toBuffer("image/png");
 }
 
 function textHarem({ name, owned, primaryId, page, totalPages, usedPrefix, command }) {
@@ -221,13 +314,11 @@ module.exports = gacha.define({
 
     try {
       let featured = null;
-      if (page === 1) {
-        featured = owned.find((c) => c.id === primaryId) || owned[0] || null;
-      }
+      if (page === 1) featured = owned.find((c) => c.id === primaryId) || owned[0] || null;
       const featuredImg = featured ? await featuredImage(featured) : null;
 
       const start = (page - 1) * PER_PAGE;
-      const html = buildHtml({
+      const buffer = renderCard({
         name,
         owned: owned.length,
         catalog: gacha.countCharacters(),
@@ -242,10 +333,11 @@ module.exports = gacha.define({
         command
       });
 
-      await sendRichHtml(sock, chatId, "✦ Harem", "HAREM", html);
-      return;
+      let caption = `✿ Harem de *${name}*\n⌦ Página *${page}* de *${pages}*`;
+      if (page < pages) caption += `\n> Usa *${usedPrefix}${command} ${page + 1}* para ver la siguiente página.`;
+      return sock.sendMessage(chatId, { image: buffer, caption, mentions: [targetJid] }, { quoted: msg });
     } catch (error) {
-      console.error("[harem] fallo la tarjeta HTML, se usa texto:", error);
+      console.error("[harem] fallo la imagen, se usa texto:", error);
     }
 
     const textPages = Math.max(1, Math.ceil(owned.length / TEXT_PER_PAGE));
