@@ -6,6 +6,10 @@ const gacha = require("../../libs/gachakit");
 const kit = require("../../libs/pluginkit");
 const eco = require("../../libs/ecokit");
 const yandere = require("../../libs/yandere");
+const fs = require("fs");
+const path = require("path");
+const { sendRichHtml } = require("../../libs/richhtml");
+const { buildHaremHtml } = require("../../libs/haremhtml");
 
 const PER_PAGE = 8;
 const TEXT_PER_PAGE = 20;
@@ -19,6 +23,154 @@ const PAD = 36;
 const ROW_H = 84;
 
 const imageCache = new Map();
+
+const RICH_ENABLED = process.env.HAREM_RICH !== "off";
+const IMAGE_MODE = process.env.HAREM_IMAGES === "remote" ? "remote" : "inline";
+const RICH_MAX_IMAGES = Math.max(0, Number(process.env.HAREM_MAX_IMAGES) || 16);
+const RICH_FETCH_BUDGET_MS = 9000;
+const THUMB_W = 110;
+const THUMB_H = 150;
+const BIG_W = 260;
+const BIG_H = 350;
+const REMOTE_HOSTS = ["files.yande.re", "assets.yande.re", "yande.re"];
+const URL_FILE = path.resolve(__dirname, "..", "..", "src", "haremimg.json");
+
+let urlStore = null;
+let urlTimer = null;
+const thumbCache = new Map();
+const THUMB_CACHE_LIMIT = 300;
+
+function loadUrls() {
+  if (urlStore) return urlStore;
+  try {
+    urlStore = fs.existsSync(URL_FILE) ? JSON.parse(fs.readFileSync(URL_FILE, "utf-8")) : {};
+  } catch {
+    urlStore = {};
+  }
+  return urlStore;
+}
+
+function saveUrls() {
+  if (urlTimer) return;
+  urlTimer = setTimeout(() => {
+    urlTimer = null;
+    try {
+      fs.writeFileSync(URL_FILE, JSON.stringify(loadUrls()));
+    } catch (error) {
+      console.error("[harem] no se pudo guardar haremimg.json:", error.message);
+    }
+  }, 3000);
+  if (urlTimer.unref) urlTimer.unref();
+}
+
+async function resolveImageUrl(character) {
+  const store = loadUrls();
+  if (store[character.id]) return store[character.id];
+  try {
+    const post = await yandere.getRandomPost(character.tag);
+    if (post && post.url) {
+      store[character.id] = post.url;
+      saveUrls();
+      return post.url;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+async function makeThumb(url, w, h, quality) {
+  const key = `${url}|${w}x${h}`;
+  if (thumbCache.has(key)) return thumbCache.get(key);
+  const res = await axios.get(url, {
+    responseType: "arraybuffer",
+    timeout: IMAGE_TIMEOUT_MS,
+    maxContentLength: MAX_DOWNLOAD_BYTES,
+    headers: { "User-Agent": "Mozilla/5.0" }
+  });
+  const img = await loadImage(Buffer.from(res.data));
+  const canvas = createCanvas(w, h);
+  const ctx = canvas.getContext("2d");
+  const scale = Math.max(w / img.width, h / img.height);
+  const dw = img.width * scale;
+  const dh = img.height * scale;
+  ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+  const uri = `data:image/jpeg;base64,${canvas.toBuffer("image/jpeg", quality).toString("base64")}`;
+  if (thumbCache.size >= THUMB_CACHE_LIMIT) thumbCache.delete(thumbCache.keys().next().value);
+  thumbCache.set(key, uri);
+  return uri;
+}
+
+async function collectImages(candidates, featuredId) {
+  const out = new Map();
+  const picked = candidates.slice(0, RICH_MAX_IMAGES);
+  const work = picked.map(async (c) => {
+    try {
+      const url = await resolveImageUrl(c);
+      if (!url) return;
+      if (IMAGE_MODE === "remote") {
+        out.set(c.id, { img: url });
+        return;
+      }
+      const img = await makeThumb(url, THUMB_W, THUMB_H, 55);
+      const entry = { img };
+      if (c.id === featuredId) entry.big = await makeThumb(url, BIG_W, BIG_H, 70);
+      out.set(c.id, entry);
+    } catch {
+      return;
+    }
+  });
+  await Promise.race([Promise.allSettled(work), new Promise((resolve) => setTimeout(resolve, RICH_FETCH_BUDGET_MS))]);
+  return out;
+}
+
+function formatDate(ts) {
+  if (!ts) return "";
+  try {
+    return new Date(ts).toLocaleDateString("es-VE", { day: "numeric", month: "short", year: "numeric" });
+  } catch {
+    return "";
+  }
+}
+
+async function sendRichHarem({ sock, msg, chatId, name, owned, primaryId }) {
+  const sorted = [...owned].sort((a, b) => String(a.series).localeCompare(String(b.series)) || b.value - a.value);
+  const featuredId = primaryId && owned.some((c) => c.id === primaryId) ? primaryId : sorted[0].id;
+  const priority = [...sorted].sort((a, b) => (a.id === featuredId ? -1 : b.id === featuredId ? 1 : 0));
+  const images = await collectImages(priority, featuredId);
+
+  const rankMap = new Map();
+  gacha.getCharactersByValue().forEach((c, i) => rankMap.set(c.id, i + 1));
+
+  const items = sorted.map((c) => {
+    const entry = images.get(c.id) || {};
+    return {
+      i: c.id,
+      n: c.name,
+      s: c.series,
+      g: c.gender || "",
+      v: c.value,
+      vf: eco.money(c.value),
+      fav: c.id === primaryId,
+      d: formatDate(c.claimedAt),
+      k: rankMap.get(c.id) || 0,
+      img: entry.img || null,
+      big: entry.big || null
+    };
+  });
+
+  const html = buildHaremHtml({
+    owner: name,
+    catalog: gacha.countCharacters(),
+    total: eco.money(owned.reduce((sum, c) => sum + (c.value || 0), 0)),
+    prefix: global.prefix || ".",
+    featured: featuredId,
+    items
+  });
+
+  const trustedSources = IMAGE_MODE === "remote" ? REMOTE_HOSTS : [];
+  await sendRichHtml(sock, chatId, `Harem de ${name}`, "Harem", html, { trustedSources, quoted: msg });
+}
 
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
@@ -321,6 +473,14 @@ module.exports = gacha.define({
     }
 
     const primaryId = gacha.getPrimaryCharacter(targetId);
+    if (RICH_ENABLED) {
+      try {
+        return await sendRichHarem({ sock, msg, chatId, name, owned, primaryId });
+      } catch (richError) {
+        console.error("[harem] fallo el HTML interactivo, se usa imagen:", richError);
+      }
+    }
+
     const pageArg = args.find((a) => /^\d+$/.test(a));
     const page = pageArg ? parseInt(pageArg, 10) : 1;
 
@@ -372,3 +532,4 @@ module.exports = gacha.define({
     return sock.sendMessage(chatId, { text, mentions: [targetJid] }, { quoted: msg });
   }
 });
+  
