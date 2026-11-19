@@ -87,7 +87,7 @@ const handler = async (msg, ctx = {}) => {
   }
 
   const username = msg.pushName || "usuario";
-  const botname = sock.user?.name || "Bot";
+  const botname = "Rem";
   const basePrompt = `Tu nombre es ${botname} y parece haber sido creada por Neykoor. Tu versión actual es @latest, Tú usas el idioma Español. Llamarás a las personas por su nombre ${username}, te gusta ser divertida, y te encanta aprender. Lo más importante es que debes ser amigable con la persona con la que estás hablando. ${username}`;
 
   try {
