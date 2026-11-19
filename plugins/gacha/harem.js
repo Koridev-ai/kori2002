@@ -31,8 +31,8 @@ const RICH_MAX_IMAGES = Math.max(0, Number(process.env.HAREM_MAX_IMAGES) || 16);
 const RICH_FETCH_BUDGET_MS = 9000;
 const THUMB_W = 110;
 const THUMB_H = 150;
-const BIG_W = 260;
-const BIG_H = 350;
+const BIG_W = 480;
+const BIG_H = 640;
 const REMOTE_HOSTS = ["files.yande.re", "assets.yande.re", "yande.re"];
 const URL_FILE = path.resolve(__dirname, "..", "..", "src", "haremimg.json");
 
@@ -115,7 +115,7 @@ async function collectImages(candidates, featuredId) {
       }
       const img = await makeThumb(url, THUMB_W, THUMB_H, 55);
       const entry = { img };
-      if (c.id === featuredId) entry.big = await makeThumb(url, BIG_W, BIG_H, 70);
+      if (c.id === featuredId) entry.big = await makeThumb(url, BIG_W, BIG_H, 72);
       out.set(c.id, entry);
     } catch {
       return;
@@ -574,4 +574,5 @@ module.exports = gacha.define({
     return sock.sendMessage(chatId, { text, mentions: [targetJid] }, { quoted: msg });
   }
 });
-                                        
+
+      
