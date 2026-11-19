@@ -54,13 +54,18 @@ body{background:linear-gradient(180deg,#dbeafe,#bae6fd);min-height:100vh;padding
 .info span{display:block;font-size:11px;color:#64748b;margin-top:3px}
 .cmds{margin-top:14px;padding:10px 12px;border-radius:16px;background:#f0f9ff;border:2px dashed #bae6fd;text-align:left;font-size:13px;color:#475569;line-height:1.7}
 .cmds b{color:#0369a1}
+.dimg[data-zoom]{cursor:zoom-in;position:relative}
+.dimg[data-zoom]::after{content:"\\u26F6";position:absolute;right:8px;bottom:8px;width:30px;height:30px;border-radius:50%;background:rgba(15,23,42,.55);color:#fff;font-size:16px;display:flex;align-items:center;justify-content:center}
+.zoom{position:fixed;top:0;right:0;bottom:0;left:0;z-index:50;background:rgba(2,6,23,.94);display:flex;align-items:center;justify-content:center;padding:14px}
+.zoom img{max-width:100%;max-height:100%;object-fit:contain;border-radius:12px}
+.zoom button{position:absolute;top:12px;right:14px;width:46px;height:46px;border-radius:50%;border:0;background:rgba(255,255,255,.22);color:#fff;font-size:24px;cursor:pointer}
 `;
 
 const CLIENT = `
 (function(){
   var D = JSON.parse(document.getElementById('data').textContent);
   var PER = 8;
-  var S = { q: '', p: 1, d: null };
+  var S = { q: '', p: 1, d: null, z: false };
   var app = document.getElementById('app');
 
   function esc(t){ var e = document.createElement('div'); e.textContent = String(t == null ? '' : t); return e.innerHTML.replace(/"/g,'&quot;'); }
@@ -110,12 +115,13 @@ const CLIENT = `
   }
   function detail(c){
     return '<button class="back" data-back="1">\\u2039 Volver</button>' +
-      '<div class="dcard"><div class="dimg">' + img(c.big || c.img) + '</div>' +
+      '<div class="dcard"><div class="dimg"' + ((c.big || c.img) ? ' data-zoom="1"' : '') + '>' + img(c.big || c.img) + '</div>' +
       '<h2>' + esc(c.n) + '</h2><div class="s">' + esc(c.s) + '</div><div class="i">ID ' + esc(c.i) + '</div>' +
       (c.fav ? '<span class="fav">\\u2605 Favorito</span>' : '') +
       '<div class="info"><div><b>' + esc(c.vf) + '</b><span>Valor</span></div><div><b>#' + esc(c.k || '-') + '</b><span>Puesto</span></div>' +
       '<div><b>' + esc(c.g || '-') + '</b><span>G\\u00E9nero</span></div><div><b>' + esc(c.d || '-') + '</b><span>Reclamado</span></div></div>' +
-      '<div class="cmds"><b>' + esc(D.prefix) + 'charinfo ' + esc(c.i) + '</b><br><b>' + esc(D.prefix) + 'setfav ' + esc(c.i) + '</b><br><b>' + esc(D.prefix) + 'sell 5000 ' + esc(c.i) + '</b></div></div>';
+      '<div class="cmds"><b>' + esc(D.prefix) + 'charinfo ' + esc(c.i) + '</b><br><b>' + esc(D.prefix) + 'setfav ' + esc(c.i) + '</b><br><b>' + esc(D.prefix) + 'sell 5000 ' + esc(c.i) + '</b></div></div>' +
+      (S.z && (c.big || c.img) ? '<div class="zoom" data-unzoom="1"><img src="' + esc(c.big || c.img) + '" alt=""><button data-unzoom="1">\\u00D7</button></div>' : '');
   }
   function render(keep){
     var c = S.d ? D.items.filter(function(x){ return x.i === S.d; })[0] : null;
@@ -132,11 +138,13 @@ const CLIENT = `
   }
   app.addEventListener('click', function(ev){
     var t = ev.target;
-    while (t && t !== app && !(t.dataset && (t.dataset.p || t.dataset.id || t.dataset.back))) t = t.parentNode;
+    while (t && t !== app && !(t.dataset && (t.dataset.p || t.dataset.id || t.dataset.back || t.dataset.zoom || t.dataset.unzoom))) t = t.parentNode;
     if (!t || t === app) return;
     if (t.dataset.p !== undefined) { if (t.disabled) return; S.p += parseInt(t.dataset.p, 10); render(); }
-    else if (t.dataset.id !== undefined) { S.d = t.dataset.id; render(); }
-    else if (t.dataset.back !== undefined) { S.d = null; render(); }
+    else if (t.dataset.id !== undefined) { S.d = t.dataset.id; S.z = false; render(); }
+    else if (t.dataset.zoom !== undefined) { S.z = true; render(true); }
+    else if (t.dataset.unzoom !== undefined) { S.z = false; render(true); }
+    else if (t.dataset.back !== undefined) { S.d = null; S.z = false; render(); }
   });
   render();
 })();
