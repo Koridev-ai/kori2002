@@ -32,9 +32,9 @@ body{background:linear-gradient(180deg,#dbeafe,#bae6fd);min-height:100vh;padding
 .row:active{background:#f0f9ff}
 .num{width:42px;height:42px;border-radius:50%;background:#e0f2fe;color:#0369a1;font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;flex:none}
 .mid{flex:1;min-width:0}
-.mid b{display:block;font-size:16px;line-height:1.2;word-break:break-word}
+.mid b{display:block;font-size:16px;line-height:1.2;overflow-wrap:break-word}
 .mid span{display:block;font-size:12px;color:#64748b;margin-top:2px;word-break:break-word}
-.val{font-size:14px;font-weight:700;color:#0369a1;text-align:right;flex:none;max-width:34%;word-break:break-word}
+.val{font-size:14px;font-weight:700;color:#0369a1;text-align:right;flex:none;white-space:nowrap}
 .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px}
 .pbtn{width:62px;height:46px;border-radius:16px;border:2px solid #7dd3fc;background:#0ea5e9;color:#fff;font-size:22px;font-weight:700;cursor:pointer}
 .pbtn[disabled]{opacity:.35;cursor:default}
@@ -97,7 +97,7 @@ const CLIENT = `
     var rows = slice.map(function(c, i){
       return '<div class="row" data-id="' + esc(c.i) + '"><div class="num">' + (start + i + 1) + '</div>' +
         '<div class="mid"><b>' + (c.fav ? '\\u2605 ' : '') + esc(c.n) + '</b><span>' + esc(c.s) + '</span></div>' +
-        '<div class="val">' + esc(c.vf) + '</div></div>';
+        '<div class="val">' + esc(c.vs || c.vf) + '</div></div>';
     }).join('');
     return top() +
       '<input class="search" id="q" type="text" placeholder="Buscar personaje o serie" value="' + esc(S.q) + '">' +
@@ -142,7 +142,19 @@ const CLIENT = `
 })();
 `;
 
+const BG_CSS = `
+html{background:#bae6fd}
+body{background:none}
+body::before{content:"";position:fixed;top:0;right:0;bottom:0;left:0;z-index:-1;background:linear-gradient(180deg,rgba(219,234,254,.45),rgba(186,230,253,.45)),url("__BG__") center/cover no-repeat}
+.hasbg .tile,.hasbg .feat,.hasbg .row,.hasbg .pinfo,.hasbg .dcard,.hasbg .search{background:rgba(255,255,255,.88)}
+.hasbg .info div,.hasbg .cmds{background:rgba(240,249,255,.9)}
+.hasbg .cap,.hasbg .hint{color:#0f172a;text-shadow:0 1px 2px rgba(255,255,255,.8)}
+`;
+
 function buildHaremHtml(data) {
+  const bg = typeof data.bg === "string" && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(data.bg) ? data.bg : null;
+  const { bg: _omit, ...rest } = data;
+  data = rest;
   const payload = JSON.stringify(data)
     .replace(/</g, "\\u003c")
     .replace(/>/g, "\\u003e")
@@ -152,7 +164,7 @@ function buildHaremHtml(data) {
   return (
     `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">` +
     `<meta name="viewport" content="width=device-width, initial-scale=1">` +
-    `<style>${CSS}</style></head><body><div class="wrap"><div id="app"></div></div>` +
+    `<style>${CSS}${bg ? BG_CSS.replace("__BG__", () => bg) : ""}</style></head><body${bg ? ' class="hasbg"' : ""}><div class="wrap"><div id="app"></div></div>` +
     `<script type="application/json" id="data">${payload}</script>` +
     `<script>${CLIENT}</script></body></html>`
   );
