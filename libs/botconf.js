@@ -160,7 +160,7 @@ function match(id, text) {
 
 function displayName(id, sock) {
   const settings = get(id);
-  return settings.namebot || settings.botname || sock?.user?.name || "Bot";
+  return settings.namebot || settings.botname || "Rem";
 }
 
 function role(bot, ids, fromMe) {
@@ -293,3 +293,4 @@ module.exports = {
   elect,
   flush
 };
+  
