@@ -191,6 +191,7 @@ async function sendRichHarem({ sock, msg, chatId, name, owned, primaryId, target
       g: c.gender || "",
       v: c.value,
       vf: eco.money(c.value),
+      vs: eco.money(c.value).split(" ")[0],
       fav: c.id === primaryId,
       d: formatDate(c.claimedAt),
       k: rankMap.get(c.id) || 0,
@@ -573,4 +574,4 @@ module.exports = gacha.define({
     return sock.sendMessage(chatId, { text, mentions: [targetJid] }, { quoted: msg });
   }
 });
-    
+                                        
