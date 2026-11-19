@@ -11,7 +11,23 @@ const CERT_CHAIN_B64 = [
 const SIGNATURE = Buffer.from(SIGNATURE_B64, "base64");
 const CERT_CHAIN = CERT_CHAIN_B64.map((item) => Buffer.from(item, "base64"));
 
-async function sendRichHtml(sock, chatId, title, tabHeader, html) {
+async function sendRichHtml(sock, chatId, title, tabHeader, html, options = {}) {
+  const extraSources = Array.isArray(options.trustedSources) ? options.trustedSources : [];
+  const trustedSources = [...new Set([
+    "astabot.hidenplay.net",
+    "cdn.tailwindcss.com",
+    "fonts.googleapis.com",
+    "fonts.gstatic.com",
+    ...extraSources
+  ])];
+  const quoted = options.quoted;
+  const quotedContext = quoted && quoted.key && quoted.message
+    ? {
+        stanzaId: quoted.key.id,
+        participant: quoted.key.participant || quoted.key.remoteJid,
+        quotedMessage: quoted.message
+      }
+    : {};
   const responseId = "KoriRich_" + Date.now();
   const data = {
     response_id: responseId,
@@ -47,12 +63,7 @@ async function sendRichHtml(sock, chatId, title, tabHeader, html) {
                         __typename: "GenAIaeacdsnwHtmlPrimitive",
                         payload: html,
                         url: "https://astabot.hidenplay.net",
-                        trusted_sources: [
-                          "astabot.hidenplay.net",
-                          "cdn.tailwindcss.com",
-                          "fonts.googleapis.com",
-                          "fonts.gstatic.com"
-                        ]
+                        trusted_sources: trustedSources
                       }
                     }
                   }
@@ -100,6 +111,7 @@ async function sendRichHtml(sock, chatId, title, tabHeader, html) {
               data: Buffer.from(JSON.stringify(data))
             },
             contextInfo: {
+              ...quotedContext,
               forwardingScore: 1,
               isForwarded: true,
               forwardedAiBotMessageInfo: { botJid: "867051314767696@bot" },
