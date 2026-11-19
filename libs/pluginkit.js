@@ -59,6 +59,22 @@ function getMedia(message) {
   return null;
 }
 
+function buttonReplyId(message) {
+  const flow = message.interactiveResponseMessage?.nativeFlowResponseMessage?.paramsJson;
+  if (flow) {
+    try {
+      const parsed = JSON.parse(flow);
+      if (parsed && parsed.id) return String(parsed.id);
+    } catch {}
+  }
+  return (
+    message.buttonsResponseMessage?.selectedButtonId ||
+    message.templateButtonReplyMessage?.selectedId ||
+    message.listResponseMessage?.singleSelectReply?.selectedRowId ||
+    ""
+  );
+}
+
 function getText(message) {
   if (!message) return "";
   return (
@@ -67,6 +83,7 @@ function getText(message) {
     message.imageMessage?.caption ||
     message.videoMessage?.caption ||
     message.documentMessage?.caption ||
+    buttonReplyId(message) ||
     ""
   );
 }
