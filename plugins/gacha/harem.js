@@ -10,6 +10,7 @@ const fs = require("fs");
 const path = require("path");
 const { sendRichHtml } = require("../../libs/richhtml");
 const { buildHaremHtml } = require("../../libs/haremhtml");
+const harembg = require("../../libs/harembg");
 
 const PER_PAGE = 8;
 const TEXT_PER_PAGE = 20;
@@ -124,6 +125,45 @@ async function collectImages(candidates, featuredId) {
   return out;
 }
 
+const MEDIA_DIR = path.resolve(__dirname, "..", "..", "media");
+const BG_W = 480;
+const BG_H = 860;
+let bgCache = { key: null, uri: null };
+
+function findBackgroundFile() {
+  if (process.env.HAREM_BG) {
+    const custom = path.isAbsolute(process.env.HAREM_BG) ? process.env.HAREM_BG : path.resolve(__dirname, "..", "..", process.env.HAREM_BG);
+    return fs.existsSync(custom) ? custom : null;
+  }
+  for (const name of ["haremfondo.jpg", "haremfondo.jpeg", "haremfondo.png", "haremfondo.webp"]) {
+    const file = path.join(MEDIA_DIR, name);
+    if (fs.existsSync(file)) return file;
+  }
+  return null;
+}
+
+async function loadBackground() {
+  try {
+    const file = findBackgroundFile();
+    if (!file) return null;
+    const key = `${file}|${fs.statSync(file).mtimeMs}`;
+    if (bgCache.key === key) return bgCache.uri;
+    const img = await loadImage(fs.readFileSync(file));
+    const canvas = createCanvas(BG_W, BG_H);
+    const ctx = canvas.getContext("2d");
+    const scale = Math.max(BG_W / img.width, BG_H / img.height);
+    const dw = img.width * scale;
+    const dh = img.height * scale;
+    ctx.drawImage(img, (BG_W - dw) / 2, (BG_H - dh) / 2, dw, dh);
+    const uri = `data:image/jpeg;base64,${canvas.toBuffer("image/jpeg", 55).toString("base64")}`;
+    bgCache = { key, uri };
+    return uri;
+  } catch (error) {
+    console.error("[harem] no se pudo cargar el fondo:", error.message);
+    return null;
+  }
+}
+
 function formatDate(ts) {
   if (!ts) return "";
   try {
@@ -133,7 +173,7 @@ function formatDate(ts) {
   }
 }
 
-async function sendRichHarem({ sock, msg, chatId, name, owned, primaryId }) {
+async function sendRichHarem({ sock, msg, chatId, name, owned, primaryId, targetId }) {
   const sorted = [...owned].sort((a, b) => String(a.series).localeCompare(String(b.series)) || b.value - a.value);
   const featuredId = primaryId && owned.some((c) => c.id === primaryId) ? primaryId : sorted[0].id;
   const priority = [...sorted].sort((a, b) => (a.id === featuredId ? -1 : b.id === featuredId ? 1 : 0));
@@ -165,6 +205,7 @@ async function sendRichHarem({ sock, msg, chatId, name, owned, primaryId }) {
     total: eco.money(owned.reduce((sum, c) => sum + (c.value || 0), 0)),
     prefix: global.prefix || ".",
     featured: featuredId,
+    bg: harembg.load(targetId) || (await loadBackground()),
     items
   });
 
@@ -475,7 +516,7 @@ module.exports = gacha.define({
     const primaryId = gacha.getPrimaryCharacter(targetId);
     if (RICH_ENABLED) {
       try {
-        return await sendRichHarem({ sock, msg, chatId, name, owned, primaryId });
+        return await sendRichHarem({ sock, msg, chatId, name, owned, primaryId, targetId });
       } catch (richError) {
         console.error("[harem] fallo el HTML interactivo, se usa imagen:", richError);
       }
@@ -532,4 +573,4 @@ module.exports = gacha.define({
     return sock.sendMessage(chatId, { text, mentions: [targetJid] }, { quoted: msg });
   }
 });
-      
+    
