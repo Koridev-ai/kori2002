@@ -15,11 +15,10 @@ const shuffle = (list) => {
   return copy;
 };
 
-const fromNekosBest = async (name) => {
-  const data = await nsfw.getJson(`https://nekos.best/api/v2/${name}`, { amount: 8 });
-  return (Array.isArray(data?.results) ? data.results : [])
-    .filter((r) => typeof r?.url === "string" && r.url.startsWith("http"))
-    .map((r) => ({ url: r.url, ext: nsfw.extOf(r.url) || "gif" }));
+const fromOtaku = async (name) => {
+  const data = await nsfw.getJson("https://api.otakugifs.xyz/gif", { reaction: name, format: "gif" });
+  if (typeof data?.url !== "string" || !data.url.startsWith("http")) return [];
+  return [{ url: data.url, ext: "gif" }];
 };
 
 const fromPurrbot = async (name) => {
@@ -28,18 +27,12 @@ const fromPurrbot = async (name) => {
   return [{ url: data.link, ext: "gif" }];
 };
 
-const fromWaifuPics = async (name) => {
-  const data = await nsfw.getJson(`https://api.waifu.pics/sfw/${name}`);
-  if (typeof data?.url !== "string") return [];
-  return [{ url: data.url, ext: nsfw.extOf(data.url) || "gif" }];
-};
-
 async function getList(sources) {
   const order = shuffle(
     [
-      sources.nekos && (() => fromNekosBest(sources.nekos)),
       sources.purr && (() => fromPurrbot(sources.purr)),
-      sources.waifu && (() => fromWaifuPics(sources.waifu))
+      sources.otaku && (() => fromOtaku(sources.otaku)),
+      sources.otaku && (() => fromOtaku(sources.otaku))
     ].filter(Boolean)
   );
   const list = [];
