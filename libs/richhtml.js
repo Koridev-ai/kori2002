@@ -75,6 +75,15 @@ async function sendRichHtml(sock, chatId, title, html, options = {}) {
     ]
   };
 
+  const quoted = options.quoted && options.quoted.key ? options.quoted : null;
+  const quoteInfo = quoted
+    ? {
+        stanzaId: quoted.key.id,
+        participant: quoted.key.participant || quoted.key.remoteJid,
+        quotedMessage: quoted.message
+      }
+    : {};
+
   const messageId =
     typeof sock.generateMessageTag === "function"
       ? await sock.generateMessageTag()
@@ -112,7 +121,8 @@ async function sendRichHtml(sock, chatId, title, html, options = {}) {
               forwardingScore: 1,
               isForwarded: true,
               forwardedAiBotMessageInfo: { botJid: BOT_JID },
-              forwardOrigin: 4
+              forwardOrigin: 4,
+              ...quoteInfo
             }
           }
         }
