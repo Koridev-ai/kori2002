@@ -14,7 +14,7 @@ module.exports = gk.define({
     if (!t) return kit.reply(sock, msg, "《✧》 Debes mencionar o responder al usuario que deseas advertir.");
     const hasMention = (pdb.mentionTarget(msg)?.raw || "") && kit.getMentions(msg).length > 0;
     const reason = (hasMention ? args.slice(1) : args).join(" ") || "Sin razón.";
-    const user = db.user(g.chatId, t.jid);
+    const user = db.user(g.chatId, t.id);
     const author = pdb.selfJid(msg);
     user.warnings.unshift({ reason, timestamp: gk.nowText(), by: author });
     db.save();
