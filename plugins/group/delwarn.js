@@ -12,10 +12,10 @@ module.exports = gk.define({
   run: async ({ sock, msg, g, args }) => {
     const t = gk.target(msg, g);
     if (!t) return kit.reply(sock, msg, "《✧》 Debes mencionar o responder al usuario cuya advertencia deseas eliminar.");
-    const user = db.user(g.chatId, t.jid);
+    const user = db.user(g.chatId, t.id);
     const total = user.warnings.length;
     if (!total) return kit.reply(sock, msg, `《✧》 El usuario @${t.number} no tiene advertencias registradas.`, { mentions: [t.jid] });
-    const name = pdb.peek(t.jid)?.name || "Usuario";
+    const name = pdb.peek(t.id)?.name || "Usuario";
     const hasMention = kit.getMentions(msg).length > 0;
     const raw = hasMention ? args[1] : args[0];
     if (String(raw || "").toLowerCase() === "all") {
