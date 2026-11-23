@@ -11,7 +11,7 @@ module.exports = gk.define({
   run: async ({ sock, msg, g, args }) => {
     const t = gk.target(msg, g);
     const jid = t ? t.jid : pdb.selfJid(msg);
-    const user = db.peekUser(g.chatId, jid);
+    const user = db.peekUser(g.chatId, t ? t.id : jid);
     if (!user) return kit.reply(sock, msg, "「✎」 El usuario mencionado no tiene actividad registrada todavía.");
     const days = parseInt(args[0], 10) || 30;
     const stats = db.periodStats(user, days);
