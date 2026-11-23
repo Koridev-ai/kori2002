@@ -160,6 +160,55 @@ body::before{content:"";position:fixed;top:0;right:0;bottom:0;left:0;z-index:-1;
 .hasbg .cap,.hasbg .hint{color:#0f172a;text-shadow:0 1px 2px rgba(255,255,255,.8)}
 `;
 
+function escHtml(value) {
+  return String(value === undefined || value === null ? "" : value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function staticImg(src) {
+  return src ? `<img src="${escHtml(src)}" alt="">` : "\u2744\uFE0F";
+}
+
+function staticApp(data) {
+  const items = data.items || [];
+  const per = 8;
+  const pages = Math.max(1, Math.ceil(items.length / per));
+  const pct = data.catalog > 0 ? Math.max(2, Math.min(100, (items.length / data.catalog) * 100)) : 2;
+  const top =
+    `<div class="banner"><small>KORI  |  HAREM</small><h1>${escHtml(data.owner)}</h1><p>Colecci\u00F3n de personajes reclamados</p></div>` +
+    `<div class="tiles"><div class="tile"><b>${items.length}</b><span>Personajes</span></div>` +
+    `<div class="tile"><b>${escHtml(data.catalog)}</b><span>En el cat\u00E1logo</span></div>` +
+    `<div class="tile"><b>${escHtml(data.total)}</b><span>Valor total</span></div></div>` +
+    `<div class="track"><i style="width:${pct}%"></i></div>` +
+    `<div class="cap">${items.length} de ${escHtml(data.catalog)} personajes del cat\u00E1logo</div>`;
+  const f = items.find((x) => x.i === data.featured);
+  const feat = f
+    ? `<div class="feat" data-id="${escHtml(f.i)}"><div class="fimg">${staticImg(f.big || f.img)}</div>` +
+      `<div class="ftxt"><em>DESTACADO</em><h2>${escHtml(f.n)}</h2><div class="s">${escHtml(f.s)}</div><div class="i">ID ${escHtml(f.i)}</div>` +
+      `<div class="v">${escHtml(f.vf)}</div>${f.fav ? '<span class="fav">\u2605 Favorito</span>' : ""}</div></div>`
+    : "";
+  const rows = items
+    .slice(0, per)
+    .map(
+      (c, i) =>
+        `<div class="row" data-id="${escHtml(c.i)}"><div class="num">${i + 1}</div>` +
+        `<div class="mid"><b>${c.fav ? "\u2605 " : ""}${escHtml(c.n)}</b><span>${escHtml(c.s)}</span></div>` +
+        `<div class="val">${escHtml(c.vs || c.vf)}</div></div>`
+    )
+    .join("");
+  return (
+    top +
+    feat +
+    rows +
+    `<div class="pager"><button class="pbtn" data-p="-1" disabled>\u2039</button>` +
+    `<div class="pinfo">P\u00E1gina 1 de ${pages}</div>` +
+    `<button class="pbtn" data-p="1"${pages <= 1 ? " disabled" : ""}>\u203A</button></div>`
+  );
+}
+
 function buildHaremHtml(data) {
   const bg = typeof data.bg === "string" && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(data.bg) ? data.bg : null;
   const { bg: _omit, ...rest } = data;
@@ -173,7 +222,7 @@ function buildHaremHtml(data) {
   return (
     `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">` +
     `<meta name="viewport" content="width=device-width, initial-scale=1">` +
-    `<style>${CSS}${bg ? BG_CSS.replace("__BG__", () => bg) : ""}</style></head><body${bg ? ' class="hasbg"' : ""}><div class="wrap"><div id="app"></div></div>` +
+    `<style>${CSS}${bg ? BG_CSS.replace("__BG__", () => bg) : ""}</style></head><body${bg ? ' class="hasbg"' : ""}><div class="wrap"><div id="app">${staticApp(data)}</div></div>` +
     `<script type="application/json" id="data">${payload}</script>` +
     `<script>${CLIENT}</script></body></html>`
   );
