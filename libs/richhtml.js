@@ -5,7 +5,7 @@ async function sendRichHtml(sock, chatId, title, html, options = {}) {
   return sock.sendRichHtml(chatId, title, html, quoted, {
     tabHeader: options.tabHeader || "KORI",
     trustedSources: options.trustedSources,
-    wrapped: options.wrapped === true
+    wrapped: options.wrapped !== false
   });
 }
 
