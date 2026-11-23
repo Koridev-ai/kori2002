@@ -61,7 +61,9 @@ function target(msg, g) {
   if (!t) return null;
   const p = g.find(t.jid, t.raw);
   const ids = [...new Set([t.jid, p?.phoneNumber, p?.jid, p?.id, t.raw].filter(Boolean))];
-  return { p, jid: p?.id || t.raw || t.jid, raw: t.raw, number: lid.user(p?.id || t.raw || t.jid), ids };
+  const jid = p?.id || t.raw || t.jid;
+  const pn = [t.jid, p?.phoneNumber, p?.jid].find((value) => value && lid.isPn(value)) || null;
+  return { p, jid, id: pn ? lid.toPn(pn) : jid, raw: t.raw, number: lid.user(jid), ids };
 }
 
 function define({ commands, description, admin = false, botAdmin = false, group = true, run }) {
