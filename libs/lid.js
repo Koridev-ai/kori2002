@@ -145,10 +145,21 @@ async function sameUser(sock, a, b, msg) {
   return user(ra) === user(rb);
 }
 
+const LOOKUP_TIMEOUT = 2000;
+
+function withTimeout(promise, ms) {
+  let timer;
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => resolve(null), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 async function ownerLid(sock, number) {
+  if (number.length >= 14) return null;
   const hit = ownerLids.get(number);
   if (hit && (hit.lid || Date.now() - hit.at < MISS_TTL)) return hit.lid;
-  const lid = await getLID(sock, `${number}${PN_SERVER}`).catch(() => null);
+  const lid = await withTimeout(getLID(sock, `${number}${PN_SERVER}`).catch(() => null), LOOKUP_TIMEOUT);
   remember(ownerLids, number, { lid: lid ? user(lid) : null, at: Date.now() });
   return lid ? user(lid) : null;
 }
@@ -193,3 +204,4 @@ module.exports = {
   learn,
   isListed
 };
+    
