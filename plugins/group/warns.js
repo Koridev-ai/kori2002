@@ -12,10 +12,10 @@ module.exports = gk.define({
   run: async ({ sock, msg, g }) => {
     const t = gk.target(msg, g);
     if (!t) return kit.reply(sock, msg, "《✧》 Menciona o responde a un usuario válido para ver sus advertencias.");
-    const warnings = db.user(g.chatId, t.jid).warnings;
+    const warnings = db.user(g.chatId, t.id).warnings;
     const total = warnings.length;
     if (!total) return kit.reply(sock, msg, `《✧》 @${t.number} no tiene advertencias registradas.`, { mentions: [t.jid] });
-    const name = pdb.peek(t.jid)?.name || "Usuario";
+    const name = pdb.peek(t.id)?.name || "Usuario";
     const list = warnings
       .map((w, i) => `\`#${total - i}\` » ${w.reason}\n> » Fecha: ${w.timestamp}${w.by ? `\n> » Por: @${gk.mention(w.by).slice(1)}` : ""}`)
       .join("\n");
