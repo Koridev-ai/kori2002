@@ -202,7 +202,7 @@ const handler = async (msg, ctx = {}) => {
         out.push(`◇ *mención ›* ${NONE}`);
       }
       if (msg.__ids?.quoted) out.push(`◇ *respuesta ›* ${code(msg.__ids.quoted.raw)} ➜ ${code(msg.__ids.quoted.jid)}`);
-      out.push(`◇ *gk.target ›* ${t ? `${code(t.jid)} · número ${code(t.number)} · en grupo ${flag(t.p)}` : NONE}`);
+      out.push(`◇ *gk.target ›* ${t ? `jid ${code(t.jid)} · id de datos ${code(t.id)} · en grupo ${flag(t.p)}` : NONE}`);
     }
 
     out.push("");
