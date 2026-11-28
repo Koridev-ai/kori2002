@@ -1,5 +1,7 @@
 "use strict";
 
+const gmeta = require("./gmeta");
+
 const PN_SERVER = "@s.whatsapp.net";
 const LID_SERVER = "@lid";
 const MAX_CACHE = 5000;
@@ -77,8 +79,8 @@ async function pnFromStore(sock, jid) {
 }
 
 async function pnFromGroup(sock, jid, chatId) {
-  if (!chatId || !chatId.endsWith("@g.us") || typeof sock?.groupMetadata !== "function") return null;
-  const meta = await sock.groupMetadata(chatId).catch(() => null);
+  if (!chatId || !chatId.endsWith("@g.us")) return null;
+  const meta = await gmeta.get(sock, chatId);
   const id = user(jid);
   const participant = meta?.participants?.find((p) => user(p.id) === id || user(p.lid) === id);
   const pn = [participant?.phoneNumber, participant?.jid, participant?.id].find((value) => value && isPn(value));
@@ -204,4 +206,4 @@ module.exports = {
   learn,
   isListed
 };
-    
+
