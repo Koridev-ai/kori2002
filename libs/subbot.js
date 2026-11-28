@@ -7,6 +7,7 @@ const chalk = require("chalk");
 const botconf = require("./botconf");
 const dispatch = require("./dispatch");
 const botmedia = require("./botmedia");
+const gmeta = require("./gmeta");
 
 const ROOT = path.resolve(__dirname, "..");
 const SUBS_DIR = path.join(ROOT, "sessions_subs");
@@ -295,11 +296,13 @@ async function startSub({ number, mode = null, notify = null }) {
     browser: entry.mode === "qr" ? wa.Browsers.macOS("Safari") : wa.Browsers.ubuntu("Chrome"),
     syncFullHistory: false,
     markOnlineOnConnect: false,
+    cachedGroupMetadata: async (jid) => gmeta.peek(jid),
     getMessage: async (key) => entry.store.get(`${key.remoteJid}:${key.id}`)
   };
 
   const bind = (sock) => {
     entry.sock = sock;
+    gmeta.bind(sock);
     sock.ev.on("creds.update", saveCreds);
     sock.ev.on("messages.upsert", (upsert) => {
       for (const message of upsert?.messages || []) {
@@ -458,3 +461,4 @@ module.exports = {
   savedSessions,
   limit
 };
+    
