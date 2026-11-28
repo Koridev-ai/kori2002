@@ -29,6 +29,8 @@ const startSubs = () => {
 };
 
 global.opts = new Object(yargs(process.argv.slice(2)).exitProcess(false).parse());
+
+for (const signal of ["SIGINT", "SIGTERM"]) process.once(signal, () => process.exit(0));
 const localTmpDir = join(__dirname, "./tmp");
 if (!fs.existsSync(localTmpDir)) fs.mkdirSync(localTmpDir, { recursive: true });
 
@@ -76,6 +78,7 @@ setInterval(async () => {
   global.downloadContentFromMessage = downloadContentFromMessage;
 
   const { state, saveCreds } = await useMultiFileAuthState("./sessions");
+  const gmeta = require("./libs/gmeta");
 
   console.log(chalk.cyan(figlet.textSync("Cortana ultra 2.0", { font: "Standard" })));
   console.log(chalk.green("\n✅ Iniciando conexión...\n"));
@@ -110,11 +113,13 @@ setInterval(async () => {
     auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, silentLogger) },
     browser: method === "1" ? Browsers.macOS("Safari") : Browsers.ubuntu("Chrome"),
     syncFullHistory: false,
+    cachedGroupMetadata: async (jid) => gmeta.peek(jid),
   };
 
   function bindSocket(sock) {
     try {
       global.mainSock = sock;
+      gmeta.bind(sock);
       sock.ev.on("messages.upsert", (messageUpsert) => {
         dispatch.onUpsert(sock, messageUpsert, mainBot).catch((error) => console.error("❌ Error en messages.upsert:", error));
       });
