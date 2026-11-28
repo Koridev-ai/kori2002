@@ -4,6 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const botconf = require("../../libs/botconf");
 const botmedia = require("../../libs/botmedia");
+const gmeta = require("../../libs/gmeta");
 
 const MENU_BANNER = path.join(__dirname, "..", "..", "media", "menu.jpg");
 const FALLBACK_NAME = "Rem";
@@ -106,7 +107,7 @@ const handler = async (msg, ctx = {}) => {
   let groupName = "Privado";
   let members = "1";
   if (isGroup) {
-    const meta = await sock.groupMetadata(chatId).catch(() => null);
+    const meta = await gmeta.get(sock, chatId);
     groupName = meta?.subject || groupName;
     members = String(meta?.participants?.length ?? members);
   }
