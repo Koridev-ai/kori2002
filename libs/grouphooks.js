@@ -3,6 +3,7 @@
 const db = require("./groupdb");
 const gk = require("./groupkit");
 const lid = require("./lid");
+const gmeta = require("./gmeta");
 const ecomath = require("./ecomath");
 
 const INVITE_REGEX = /chat\.whatsapp\.com\/([0-9A-Za-z]{20,24})/i;
@@ -60,7 +61,7 @@ async function onParticipants(sock, update) {
     (action === "remove" && chat.goodbye) ||
     ((action === "promote" || action === "demote") && chat.alerts);
   if (!wanted) return;
-  const meta = await sock.groupMetadata(chatId).catch(() => null);
+  const meta = await gmeta.get(sock, chatId);
 
   if (action === "add") {
     const template = chat.sWelcome || "✦ Bienvenido @user a *@group*\n> Ahora somos @members miembros.";
