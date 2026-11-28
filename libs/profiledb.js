@@ -9,7 +9,10 @@ const FILE = path.resolve(__dirname, "..", "src", "profile.json");
 const MULTIPLIER = 2;
 const GROWTH = Math.pow(Math.PI / Math.E, 1.618) * Math.E * 0.75;
 
+const FLUSH_DELAY = 2000;
+
 let store = null;
+let timer = null;
 
 function load() {
   if (store) return store;
@@ -21,10 +24,27 @@ function load() {
   return store;
 }
 
-function save() {
-  fs.mkdirSync(path.dirname(FILE), { recursive: true });
-  fs.writeFileSync(FILE, JSON.stringify(load(), null, 2));
+function flush() {
+  if (timer) clearTimeout(timer);
+  timer = null;
+  if (!store) return;
+  try {
+    fs.mkdirSync(path.dirname(FILE), { recursive: true });
+    const tmp = `${FILE}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(store, null, 2));
+    fs.renameSync(tmp, FILE);
+  } catch {}
 }
+
+function save() {
+  if (timer) return;
+  timer = setTimeout(flush, FLUSH_DELAY);
+  if (timer.unref) timer.unref();
+}
+
+process.on("exit", () => {
+  if (timer) flush();
+});
 
 function key(jid) {
   return String(jid || "").split("@")[0].split(":")[0].replace(/[^0-9]/g, "");
@@ -234,6 +254,7 @@ module.exports = {
   set,
   all,
   save,
+  flush,
   xpRange,
   levelFromExp,
   progress,
