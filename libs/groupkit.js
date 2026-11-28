@@ -3,6 +3,7 @@
 const kit = require("./pluginkit");
 const pdb = require("./profiledb");
 const lid = require("./lid");
+const gmeta = require("./gmeta");
 
 const idsOf = (p) => [p.id, p.lid, p.phoneNumber, p.jid].filter(Boolean).map((jid) => lid.user(jid)).filter(Boolean);
 const isAdminP = (p) => !!p && (p.admin === "admin" || p.admin === "superadmin");
@@ -19,7 +20,7 @@ function ownerNumbers() {
 async function context(sock, msg) {
   const chatId = msg.key.remoteJid;
   if (!chatId.endsWith("@g.us")) return { isGroup: false, chatId };
-  const meta = await sock.groupMetadata(chatId).catch(() => null);
+  const meta = await gmeta.get(sock, chatId);
   const participants = meta?.participants || [];
   const find = (...jids) => {
     const nums = jids.filter(Boolean).map((jid) => lid.user(jid));
