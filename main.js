@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 require("./config");
 
-const KEEP_LOADED = ["botconf.js", "dispatch.js", "subbot.js"].map((name) => path.join(__dirname, "libs", name));
+const KEEP_LOADED = ["botconf.js", "dispatch.js", "subbot.js", "gmeta.js"].map((name) => path.join(__dirname, "libs", name));
 
 function loadPlugins() {
   const plugins = [];
