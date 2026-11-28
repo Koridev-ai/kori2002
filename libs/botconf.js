@@ -3,10 +3,12 @@
 const fs = require("fs");
 const path = require("path");
 const groupdb = require("./groupdb");
+const gmeta = require("./gmeta");
 
 const FILE = path.resolve(__dirname, "..", "src", "bots.json");
 const META_TTL = 45000;
 const MAX_META = 300;
+const ELECT_TTL = 10000;
 
 const DEFAULTS = {
   namebot: "",
@@ -131,6 +133,7 @@ function set(id, field, value) {
   if (!key) return null;
   const record = get(key);
   record[field] = value;
+  if (field === "self") elections.clear();
   save();
   return record;
 }
@@ -175,6 +178,7 @@ function role(bot, ids, fromMe) {
 const isSpecific = (value) => value === "self" || value === "owner";
 
 const live = new Map();
+const elections = new Map();
 let counter = 0;
 
 function register(id, info = {}) {
@@ -189,16 +193,19 @@ function register(id, info = {}) {
     order: previous ? previous.order : ++counter
   };
   live.set(key, entry);
+  elections.clear();
   return entry;
 }
 
 function setOnline(id, online) {
   const entry = live.get(number(id));
   if (entry) entry.online = !!online;
+  elections.clear();
 }
 
 function unregister(id) {
   live.delete(number(id));
+  elections.clear();
 }
 
 function list() {
@@ -217,12 +224,14 @@ const meta = new Map();
 
 function invalidate(chatId) {
   meta.delete(chatId);
+  elections.clear();
+  gmeta.invalidate(chatId);
 }
 
 async function members(sock, chatId) {
   const hit = meta.get(chatId);
   if (hit && Date.now() - hit.at < META_TTL) return hit.ids;
-  const data = await sock.groupMetadata(chatId).catch(() => null);
+  const data = await gmeta.get(sock, chatId);
   if (!data) return hit ? hit.ids : null;
   const ids = new Set();
   for (const p of data.participants || []) {
@@ -242,6 +251,7 @@ function primaryOf(chatId) {
 
 function setPrimary(chatId, id) {
   groupdb.set(chatId, "primaryBot", id ? number(id) : "");
+  elections.clear();
 }
 
 async function candidatesIn(sock, chatId, selfId) {
@@ -252,6 +262,18 @@ async function candidatesIn(sock, chatId, selfId) {
 }
 
 async function elect(sock, chatId, selfId) {
+  const cacheKey = `${chatId}|${selfId}`;
+  const hit = elections.get(cacheKey);
+  if (hit && Date.now() - hit.at < ELECT_TTL) return hit.id;
+  const id = await computeElection(sock, chatId, selfId);
+  if (id !== null) {
+    if (elections.size >= MAX_META) elections.delete(elections.keys().next().value);
+    elections.set(cacheKey, { at: Date.now(), id });
+  }
+  return id;
+}
+
+async function computeElection(sock, chatId, selfId) {
   const candidates = list().filter((b) => b.online && !get(b.id).self && b.getSock?.()?.user);
   if (!candidates.length) return null;
   const primary = primaryOf(chatId);
@@ -293,4 +315,4 @@ module.exports = {
   elect,
   flush
 };
-  
+
