@@ -39,7 +39,7 @@ async function sendRichHtml(sock, chatId, title, html, options = {}) {
         message: {
           richResponseMessage: {
             messageType: proto.AIRichResponseMessageType.AI_RICH_RESPONSE_TYPE_STANDARD,
-            submessages: [{ messageType: proto.AIRichResponseSubMessageType.AI_RICH_RESPONSE_TEXT, messageText: title }],
+            submessages: [{ messageType: proto.AIRichResponseSubMessageType.AI_RICH_RESPONSE_TEXT, messageText: options.text || title }],
             unifiedResponse: { data },
             contextInfo: {
               isForwarded: true,
