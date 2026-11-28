@@ -91,12 +91,16 @@ async function handle(sock, msg, bot) {
   const matched = botconf.match(botNumber, text);
 
   if (bot.isMain || matched) {
-    console.log(chalk.yellow("\n📩 Nuevo mensaje recibido"));
-    console.log(chalk.green(`🤖 Bot: ${tag(bot, botNumber)}`));
-    console.log(chalk.green(`📨 De: ${fromMe ? "[Tú]" : "[Usuario]"} ${chalk.bold(sender)}`));
-    console.log(chalk.cyan(`💬 Tipo: ${messageType}`));
-    console.log(chalk.cyan(`💬 Mensaje: ${chalk.bold(text || "📂 (Mensaje multimedia)")}`));
-    console.log(chalk.gray("──────────────────────────"));
+    console.log(
+      [
+        chalk.yellow("\n📩 Nuevo mensaje recibido"),
+        chalk.green(`🤖 Bot: ${tag(bot, botNumber)}`),
+        chalk.green(`📨 De: ${fromMe ? "[Tú]" : "[Usuario]"} ${chalk.bold(sender)}`),
+        chalk.cyan(`💬 Tipo: ${messageType}`),
+        chalk.cyan(`💬 Mensaje: ${chalk.bold(text || "📂 (Mensaje multimedia)")}`),
+        chalk.gray("──────────────────────────")
+      ].join("\n")
+    );
   }
 
   if (!isGroup && bot.isMain && !fromMe && !isAllowedUser(sender)) {
@@ -110,7 +114,7 @@ async function handle(sock, msg, bot) {
     isHandler = elected === null || elected === botNumber;
   }
 
-  if (isGroup && !fromMe && isHandler) await groupHooks.onMessage(sock, msg, text).catch(() => null);
+  if (isGroup && !fromMe && isHandler) groupHooks.onMessage(sock, msg, text).catch(() => null);
 
   if (!matched) return;
   const body = matched.body.trim();
@@ -123,8 +127,11 @@ async function handle(sock, msg, bot) {
   if (botconf.SOCKET_CMDS.has(lower) && sender !== botNumber && botconf.isLive(sender)) return;
 
   const ids = await senderIds(sock, msg, sender);
-  const isOwnerSender = await lid.isListed(sock, msg, global.owner, ids).catch(() => false);
-  const isModSender = isOwnerSender || (await lid.isListed(sock, msg, global.mods, ids).catch(() => false));
+  const [isOwnerSender, isModListed] = await Promise.all([
+    lid.isListed(sock, msg, global.owner, ids).catch(() => false),
+    lid.isListed(sock, msg, global.mods, ids).catch(() => false)
+  ]);
+  const isModSender = isOwnerSender || isModListed;
   let role = botconf.role({ id: botNumber }, ids, fromMe);
   if (role === "none" && isOwnerSender) role = "global";
 
